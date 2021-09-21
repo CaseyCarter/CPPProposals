@@ -1010,40 +1010,33 @@ Specializations of \tcode{generator} model \tcode{view} and \tcode{input_range}.
 \rSec3[coroutine.generator.class]{Class template \tcode{generator}}
 
 \begin{codeblock}
-
 namespace std {
+    template<class Ref, Value = remove_cvref_t<Ref>, class Allocator = void>
+        requires common_reference_with<Ref&&, Value&>
+    class generator {
+        class iterator; // \expos
 
-template <class Ref, Value = remove_cvref_t<Ref>,
-          class Allocator = void>
-requires  common_reference_with<Ref&&, value&>
-class generator  {
-    class promise_type_; // \expos
+    public:
+        class promise_type;
 
-public:
-    using promise_type = promise_type_;
+        generator(const generator&) = delete;
+        generator(generator&& other) noexcept;
 
-    class iterator; // \expos
+        ~generator();
 
-    generator(const generator &other) = delete;
-    generator(generator && other) noexcept;
+        generator& operator=(const generator&) = delete;
+        generator& operator=(generator&& other) noexcept;
 
-    ~generator();
+        iterator begin();
+        default_sentinel_t end() const noexcept;
 
-    generator &operator=(generator&& other) noexcept;
+    private:
+        explicit generator(coroutine_handle<promise_type> coroutine) noexcept; // \expos
 
-    iterator begin();
-    default_sentinel_t end() const noexcept;
-
-private:
-    std::coroutine_handle<promise_type> coroutine_ = nullptr; // \expos
-    bool started_ = false; // \expos
-
-    explicit generator(std::coroutine_handle<promise_type> coroutine) noexcept; // \expos
-
-};
+        coroutine_handle<promise_type> coroutine_ = nullptr; // \expos
+        bool started_ = false; // \expos
+    };
 }
-
-
 \end{codeblock}
 
 \begin{itemize}
