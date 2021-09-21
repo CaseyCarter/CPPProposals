@@ -902,7 +902,7 @@ namespace std::ranges {
 
     public:
         explicit constexpr elements_of(R&& r) noexcept
-        requires std::is_default_constructible_v<Allocator>;
+            requires default_initializable<Allocator>;
 
         explicit constexpr elements_of(R&& r, Allocator allocator) noexcept;
 
@@ -925,7 +925,7 @@ namespace std::ranges {
 
 \begin{itemdecl}
 explicit constexpr elements_of(R&& r) noexcept
-requires std::is_default_constructible_v<Allocator>
+    requires default_initializable<Allocator>
 \end{itemdecl}
 
 \begin{itemdescr}
