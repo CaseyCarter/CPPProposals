@@ -917,7 +917,7 @@ namespace std::ranges {
     template<class R>
     elements_of(R&&) -> elements_of<R>;
 
-    template<class R, typename Allocator>
+    template<class R, class Allocator>
     elements_of(R&&, Allocator) -> elements_of<R, Allocator>;
 }
 \end{codeblock}
@@ -1181,7 +1181,7 @@ public:
     template <class TVal, class TAlloc>
     @\unspec@ yield_value(elements_of<generator<Ref, TVal, TAlloc>> g) noexcept; // \seebelownc
 
-    template<ranges::input_range R, typename Allocator>
+    template<ranges::input_range R, class Allocator>
     requires convertible_to<ranges::range_reference_t<R>, Ref>
     @\unspec@ yield_value(elements_of<R, Allocator> rng); // \seebelownc
 
@@ -1277,7 +1277,7 @@ Generators can transfer control recursively.
 
 
 \begin{itemdecl}
-template<std::ranges::input_range R, typename Allocator>
+template<std::ranges::input_range R, class Allocator>
 requires convertible_to<ranges::range_reference_t<R>, Ref>
 auto yield_value(elements_of<R, Allocator> rng);
 \end{itemdecl}
