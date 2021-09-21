@@ -262,8 +262,8 @@ for(auto&& x : f) {
 
 
 \begin{colorblock}
-auto f = []() -> std::generator<MyType> { 
-    MyType t; 
+auto f = []() -> std::generator<MyType> {
+    MyType t;
     co_yield std::move(t);
 }();
 \end{colorblock}
