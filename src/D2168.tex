@@ -355,13 +355,10 @@ This proposal supports specifying both the "yielded" type, which is the iterator
 This allow ranges to handle proxy types and wrapped \tcode{reference}, like this implementation of \tcode{zip}:
 
 \begin{colorblock}
-    template<std::ranges::input_range Rng1,
-    std::ranges::input_range Rng2>
+    template<std::ranges::input_range Rng1, std::ranges::input_range Rng2>
     generator<
-    std::tuple<std::ranges::range_reference_t<Rng1>,
-    std::ranges::range_reference_t<Rng2>,
-    std::tuple<std::ranges::range_value_type_t<Rng1>,
-    std::ranges::range_value_type_t<Rng2>>>
+        std::tuple<std::ranges::range_reference_t<Rng1>, std::ranges::range_reference_t<Rng2>,
+        std::tuple<std::ranges::range_value_t<Rng1>, std::ranges::range_value_t<Rng2>>>
     zip(Rng1 r1, Rng2 r2) {
         auto it1 = std::ranges::begin(r1);
         auto it2 = std::ranges::begin(r2);
