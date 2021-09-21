@@ -1194,10 +1194,10 @@ public:
     static void* operator new(size_t size) requires same_as<Allocator, void>;
     static void* operator new(size_t size) requires (!same_as<Allocator, void> && is_default_constructible_v<Allocator>);
 
-    template<typeame Alloc, class... Args>
+    template<class Alloc, class... Args>
     static void* operator new(size_t size, allocator_arg_t, Alloc& alloc, Args&...);
 
-    template<class This, typeame Alloc, class... Args>
+    template<class This, class Alloc, class... Args>
     static void* operator new(size_t size, This&, allocator_arg_t, Alloc& alloc, Args&...);
 
     static void operator delete(void* pointer, size_t size) noexcept;
@@ -1330,10 +1330,10 @@ static void* operator new(size_t size) requires (!same_as<Allocator, void> && is
 
 
 \begin{itemdecl}
-template<typeame Alloc, class... Args>
+template<class Alloc, class... Args>
 static void* operator new(size_t size, allocator_arg_t, Alloc& alloc, Args&...);
 
-template<class This, typeame Alloc, class... Args>
+template<class This, class Alloc, class... Args>
 static void* operator new(size_t size, This&, allocator_arg_t, Alloc& alloc, Args&...);
 \end{itemdecl}
 
