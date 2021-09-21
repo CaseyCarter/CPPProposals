@@ -1074,7 +1074,7 @@ Initializes \tcode{coroutine_} with \tcode{exchange(other.coroutine_, \{\})}, \\
 \end{itemdecl}
 
 \begin{itemdescr}
-    \effects equivalent to:
+    \effects Equivalent to:
     \begin{codeblock}
     if (started_ && !coroutine_.done()) {
         coroutine_.promise().destruct_value_();
