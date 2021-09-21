@@ -965,10 +965,8 @@ constexpr Allocator get_allocator() const noexcept;
 #include <ranges>
 
 namespace std {
-
-    template<class Ref,
-        class Value = remove_cvref_t<Ref>,
-        class Allocator = void>
+    template<class Ref, class Value = remove_cvref_t<Ref>, class Allocator = void>
+        requires common_reference_with<Ref&&, Value&>
     class generator;
 
     template <class Ref, class Value, class Allocator>
