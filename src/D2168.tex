@@ -1271,7 +1271,7 @@ before variables with automatic storage duration in the scope of the coroutine d
 Generators can transfer control recursively.
 \end{note}
 
-\returns An implementation defined \tcode{awaitable} type which takes ownership of the generator \tcode{g}.
+\returns An implementation-defined \tcode{awaitable} type which takes ownership of the generator \tcode{g}.
 
 \end{itemdescr}
 
@@ -1299,7 +1299,7 @@ Equivalent to:
 }
 \end{codeblock}
 
-The return object is of an implementation defined type T such that
+The return object is of an implementation-defined type \tcode{T} such that
 \tcode{is_same_v<coroutine_traits<T>::promise_type, coroutine_traits<generator>::promise_type>} is \tcode{true}.
 
 \end{itemdescr}
