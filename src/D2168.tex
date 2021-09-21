@@ -860,7 +860,7 @@ struct dangling;
 
 \begin{addedblock}
 \begin{codeblock}
-template<std::ranges::input_range R, class Allocator = std::allocator<std::byte>>
+template<input_range R, class Allocator = allocator<byte>>
 struct elements_of;
 \end{codeblock}
 \end{addedblock}
@@ -894,7 +894,7 @@ using borrowed_iterator_t = conditional_t<@\libconcept{borrowed_range}@<R>, iter
 
 \begin{codeblock}
 namespace std::ranges {
-    template<std::ranges::input_range R, class Allocator = std::allocator<std::byte>>
+    template<input_range R, class Allocator = allocator<byte>>
     struct elements_of {
     private:
         [[no_unique_address]] Allocator allocator_; // \expos
@@ -913,10 +913,10 @@ namespace std::ranges {
         constexpr R&& range() noexcept;
         constexpr Allocator get_allocator() const noexcept;
     };
-    template<std::ranges::input_range R>
+    template<input_range R>
     elements_of(R&&) -> return elements_of<R>;
 
-    template<std::ranges::input_range R, typename Allocator>
+    template<input_range R, typename Allocator>
     elements_of(R&&, Allocator) -> elements_of<R, Allocator>;
 }
 \end{codeblock}
