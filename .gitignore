@@ -14,3 +14,5 @@ _minted*
 *.blg
 *.cb2
 *.cb
+*.fls
+*.fdb_latexmk
