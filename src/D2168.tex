@@ -896,11 +896,11 @@ using borrowed_iterator_t = conditional_t<@\libconcept{borrowed_range}@<R>, iter
 namespace std::ranges {
     template<std::ranges::input_range R, class Allocator = std::allocator<std::byte>>
     struct elements_of {
-        private:
+    private:
         [[no_unique_address]] Allocator allocator_; // \expos
         R&& range_; // \expos
 
-        public:
+    public:
         explicit constexpr elements_of(R&& r) noexcept
         requires std::is_default_constructible_v<Allocator>;
 
