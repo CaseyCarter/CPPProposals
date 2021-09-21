@@ -969,7 +969,7 @@ namespace std {
         requires common_reference_with<Ref&&, Value&>
     class generator;
 
-    template <class Ref, class Value, class Allocator>
+    template<class Ref, class Value, class Allocator>
     inline constexpr bool ranges::enable_view<generator<Ref, Value, Allocator>> = true;
 }
 
