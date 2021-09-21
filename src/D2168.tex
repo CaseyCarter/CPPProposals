@@ -913,10 +913,11 @@ namespace std::ranges {
         constexpr R&& range() noexcept;
         constexpr Allocator get_allocator() const noexcept;
     };
-    template<input_range R>
+
+    template<class R>
     elements_of(R&&) -> elements_of<R>;
 
-    template<input_range R, typename Allocator>
+    template<class R, typename Allocator>
     elements_of(R&&, Allocator) -> elements_of<R, Allocator>;
 }
 \end{codeblock}
