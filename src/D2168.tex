@@ -1055,11 +1055,12 @@ Initializes \tcode{coroutine_} with \tcode{coro}.
 
 
 \begin{itemdecl}
-generator(generator &&other) noexcept;
+generator(generator&& other) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
-Initializes \tcode{coroutine_} with \tcode{exchange(other.coroutine_, \{\})}, \\and \tcode{started_} with \tcode{exchange(other.started_, false)}.
+Initializes \tcode{coroutine_} with \tcode{exchange(other.coroutine_, \{\})}, \\
+and \tcode{started_} with \tcode{exchange(other.started_, false)}.
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1077,7 +1078,7 @@ Initializes \tcode{coroutine_} with \tcode{exchange(other.coroutine_, \{\})}, \\
 \end{itemdescr}
 
 \begin{itemdecl}
-generator &operator=(generator&& other) noexcept;
+generator& operator=(generator&& other) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
