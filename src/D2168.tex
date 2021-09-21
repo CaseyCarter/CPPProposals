@@ -844,31 +844,28 @@ The following wording is meant to illustrate the proposed API.
 \begin{codeblock}
 
 namespace std::ranges {
+    ...
 
-...
+    template<@\libconcept{input_or_output_iterator}@ I, @\libconcept{sentinel_for}@<I> S, subrange_kind K>
+    inline constexpr bool enable_borrowed_range<subrange<I, S, K>> = true;
 
-template<@\libconcept{input_or_output_iterator}@ I, @\libconcept{sentinel_for}@<I> S, subrange_kind K>
-inline constexpr bool enable_borrowed_range<subrange<I, S, K>> = true;
-
-// [range.dangling], dangling iterator handling
-struct dangling;
+    // [range.dangling], dangling iterator handling
+    struct dangling;
 
 \end{codeblock}
 
 \begin{addedblock}
 \begin{codeblock}
-template<input_range R, class Allocator = allocator<byte>>
-struct elements_of;
+    template<input_range R, class Allocator = allocator<byte>>
+    struct elements_of;
 \end{codeblock}
 \end{addedblock}
 \begin{codeblock}
-template<@\libconcept{range}@ R>
-using borrowed_iterator_t = conditional_t<@\libconcept{borrowed_range}@<R>, iterator_t<R>, dangling>;
+    template<@\libconcept{range}@ R>
+    using borrowed_iterator_t = conditional_t<@\libconcept{borrowed_range}@<R>, iterator_t<R>, dangling>;
 
-...
-
+    ...
 }
-
 \end{codeblock}
 
 
@@ -923,7 +920,7 @@ namespace std::ranges {
 
 \begin{itemdecl}
 explicit constexpr elements_of(R&& r) noexcept
-    requires default_initializable<Allocator>
+    requires default_initializable<Allocator>;
 \end{itemdecl}
 
 \begin{itemdescr}
@@ -932,7 +929,7 @@ explicit constexpr elements_of(R&& r) noexcept
 
 
 \begin{itemdecl}
-explicit constexpr elements_of(R&& r, Allocator allocator) noexcept
+explicit constexpr elements_of(R&& r, Allocator allocator) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
