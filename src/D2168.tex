@@ -914,7 +914,7 @@ namespace std::ranges {
         constexpr Allocator get_allocator() const noexcept;
     };
     template<input_range R>
-    elements_of(R&&) -> return elements_of<R>;
+    elements_of(R&&) -> elements_of<R>;
 
     template<input_range R, typename Allocator>
     elements_of(R&&, Allocator) -> elements_of<R, Allocator>;
