@@ -884,9 +884,9 @@ using borrowed_iterator_t = conditional_t<@\libconcept{borrowed_range}@<R>, iter
 
 \begin{example}
     \begin{codeblock}
-        generator<any> f(input_range auto&& rng) {
+        std::generator<any> f(std::ranges::input_range auto&& rng) {
             co_yield rng; // yield rng as a single value
-            co_yield elements_of(rng); // yield each element of rng
+            co_yield std::ranges::elements_of(rng); // yield each element of rng
         }
     \end{codeblock}
 \end{example}
