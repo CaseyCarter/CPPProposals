@@ -100,7 +100,7 @@ destruction requirement:
 
     template <class T>
     std::generator<T> all (vector<T> vec) {
-        for(auto & e : vec)  {
+        for(auto& e : vec)  {
             co_yield e;
         }
     }
@@ -153,7 +153,7 @@ generator<std::string> f() {
     co_yield "Hello"; // 1 copy (conversion from const char* to std::string)
 }
 
-for(auto && str : f()) {} // 1 copy (*it returns std::string)
+for(auto&& str : f()) {} // 1 copy (*it returns std::string)
 \end{colorblock}
 
 Of course the solution, which we advocated for, is for the user to specify manually specify an explicit reference type:
@@ -164,7 +164,7 @@ Of course the solution, which we advocated for, is for the user to specify manua
         co_yield "Hello"; // 1 copy (conversion from const char* to std::string)
     }
 
-    for(auto && str : f()) {} // 0 copy
+    for(auto&& str : f()) {} // 0 copy
 
 \end{colorblock}
 
@@ -273,7 +273,7 @@ Indeed the code expands to something similar to:
 
 \begin{colorblock}
 
-auto && __temp = std::move(t);
+auto&& __temp = std::move(t);
 yield_value(_temp); // <=> promise.value = std::addressof(__temp); // no move
 
 \end{colorblock}
@@ -310,7 +310,7 @@ but it is very easy to misuse, consider:
 
 \begin{colorblock}
 auto f = []() -> std::generator<std::string> { co_yield "footgun"; }();
-for(auto && x : f) {
+for(auto&& x : f) {
     auto y = x; // nothing suggest a move
     y.transform();
     if(x != y) {
@@ -415,13 +415,13 @@ by \tcode{yield_value} (because the yielded value is not of the same type or can
 \begin{colorblock}
 
     std::suspend_always yield_value(const Ref& x) {
-        auto &root = rootOrLeaf_.promise();
+        auto& root = rootOrLeaf_.promise();
         root.valuePtr_ = std::addressof(x);
         return {};
     }
 
     std::suspend_always yield_value(Ref& x) {
-        auto &root = rootOrLeaf_.promise();
+        auto& root = rootOrLeaf_.promise();
         root.valuePtr_ = std::addressof(x);
         return {};
     }
