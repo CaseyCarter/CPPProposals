@@ -853,7 +853,7 @@ namespace std::ranges {
 template<@\libconcept{input_or_output_iterator}@ I, @\libconcept{sentinel_for}@<I> S, subrange_kind K>
 inline constexpr bool enable_borrowed_range<subrange<I, S, K>> = true;
 
-// \ref{range.dangling}, dangling iterator handling
+// [range.dangling], dangling iterator handling
 struct dangling;
 
 \end{codeblock}
