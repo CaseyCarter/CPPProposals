@@ -427,7 +427,7 @@ by \tcode{yield_value} (because the yielded value is not of the same type or can
     }
 
     template<typename T = std::remove_cvref_t<Ref>>
-    requires !is_reference_v<Ref> && is_constructible_v<Ref, T>
+        requires (!is_reference_v<Ref> && is_constructible_v<Ref, T>)
     auto yield_value(T&& x) {
         struct yield_value_holder {
             Ref ref;
