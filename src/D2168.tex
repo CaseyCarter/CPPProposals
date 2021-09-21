@@ -996,16 +996,15 @@ as an element of the generator.
 
 \begin{example}
     \begin{codeblock}
-        generator<int> iota(int start = 0) {
+        std::generator<int> iota(int start = 0) {
             while(true)
                 co_yield start++;
         }
 
         void f() {
-            for(auto i : iota() | views::take(3))
-            cout << i << " " ; // prints 0 1 2
+            for(auto i : iota() | std::views::take(3))
+                std::cout << i << ' '; // prints 0 1 2
         }
-
     \end{codeblock}
 \end{example}
 
