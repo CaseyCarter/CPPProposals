@@ -1,7 +1,6 @@
 % !TeX program = luatex
 % !TEX encoding = UTF-8
 
-
 \RequirePackage{luatex85}%
 \documentclass{wg21}
 \usepackage{threeparttable}
@@ -13,8 +12,9 @@
 \title{\tcode{std::generator}: Synchronous Coroutine Generator for Ranges}
 \docnumber{D2168R5}
 \audience{LEWG}
-\author{Lewis Baker}{lewissbaker@gmail.com}
-\authortwo{Corentin Jabot}{corentin.jabot@gmail.com}
+\author{Casey Carter}{Casey@Carter.net}
+\authortwo{Lewis Baker}{lewissbaker@gmail.com}
+\authorthree{Corentin Jabot}{corentin.jabot@gmail.com}
 
 \begin{document}
 \maketitle
@@ -22,10 +22,20 @@
 
 \section{Abstract}
 
-We propose a standard library type \tcode{std::generator} which implements a coroutine generator compatible with ranges.
+We propose a standard library type \tcode{std::generator}
+which implements a coroutine generator
+that models \tcode{std::ranges::input_range}.
 
 
 \section{Revisions}
+
+\subsection{R5}
+\begin{itemize}
+\item Reorder \tcode{generator}'s first two template parameters,
+  so the value type precedes the reference type.
+  This allows the reference type to be more easily defaulted,
+  which feels more consistent with the R4 design.
+\end{itemize}
 
 \subsection{R4}
 \begin{itemize}
@@ -59,23 +69,19 @@ We propose a standard library type \tcode{std::generator} which implements a cor
 \section{Example}
 
 \begin{colorblock}
-    std::generator<int> fib (int max) {
-        co_yield 0;
+    std::generator<int> fib(int max) {
         auto a = 0, b = 1;
-
-        for(auto n : std::views::iota(0, max))  {
-            auto next = a + b;
-            a = b, b = next;
-            co_yield next;
+        while (true) {
+            co_yield std::exchange(a, std::exchange(b, a + b));
         }
     }
 
     int answer_to_the_universe() {
-        auto coro = fib(7) ;
-        return std::accumulate(coro | std::views::drop(5), 0);
+        auto rng = fib() | std::views::drop(6) | std::views::take(3)
+        return std::ranges::fold_left(range, 0, std::plus{});
     }
-
 \end{colorblock}
+
 
 \section{Motivation}
 
@@ -97,14 +103,12 @@ Unfortunately, some generators can satisfy the \tcode{view} constraints but fail
 destruction requirement:
 
 \begin{colorblock}
-
     template <class T>
-    std::generator<T> all (vector<T> vec) {
-        for(auto& e : vec)  {
+    std::generator<T> all(vector<T> vec) {
+        for (auto& e : vec)  {
             co_yield e;
         }
     }
-
 \end{colorblock}
 
 
@@ -114,7 +118,8 @@ destruction requirement:
 Multiple options are available as to where put the \tcode{generator} class.
 
 \begin{itemize}
-    \item \tcode{<coroutine>}, but \tcode{<coroutine>} is a low level header, and \tcode{generator} depends on bits of \tcode{<type_traits>} and \tcode{<iterator>}.
+    \item \tcode{<coroutine>}, but \tcode{<coroutine>} is a low level header,
+      and \tcode{generator} depends on bits of \tcode{<type_traits>} and \tcode{<iterator>}.
 
     \item \tcode{<ranges>}
 
@@ -130,7 +135,7 @@ Multiple options are available as to where put the \tcode{generator} class.
 
 \begin{itemize}
 \item a \tcode{Type} from which the \tcode{reference} type is derived
-\item a \tcode{Value} type, whose default is derived from the Reference type, and which has a \mbox{\tcode{common\_reference}} with the reference type
+\item a \tcode{Value} type, whose default is derived from the Reference type, and which has a \tcode{common\_reference} with the reference type
 \item An allocator or \tcode{use_allocator_arg} which is the default value.
 \end{itemize}
 
@@ -146,26 +151,25 @@ But it was a terrible performance trap:
 Consider the behavior of the following code assuming the reference type is exactly the first template argument:
 
 \begin{colorblock}
-
-generator<std::string> f() {
+std::generator<std::string> f() {
     std::string hello = "hello";
     co_yield hello;   // 0 or 1 copy depending on implementation
     co_yield "Hello"; // 1 copy (conversion from const char* to std::string)
 }
 
-for(auto&& str : f()) {} // 1 copy (*it returns std::string)
+for (auto&& str : f()) {} // 1 copy (*it returns std::string)
 \end{colorblock}
 
-Of course the solution, which we advocated for, is for the user to specify manually specify an explicit reference type:
+Of course the solution, which we advocated for, is for the user to manually specify an explicit reference type:
 
 \begin{colorblock}
     generator<const std::string&> f() {
+        std::string hello = "hello";
         co_yield hello;   // 0 or 1 copy depending on implementation
         co_yield "Hello"; // 1 copy (conversion from const char* to std::string)
     }
 
-    for(auto&& str : f()) {} // 0 copy
-
+    for (auto&& str : f()) {} // 0 copy
 \end{colorblock}
 
 This works can be explained and is even logical. You get what you asked for.
@@ -173,37 +177,37 @@ It is nonetheless surprising for non-experts that it would create 2 copies.
 
 To hope users would not routinely forget to use a reference type when using \tcode{std::generator} calls for a heaping barrel of optimism.
 
-Instead we propose that for a \tcode{generator<T>}, its reference type be defined as\\
-\tcode{conditional_t<is_reference<T>, T, std::add_lvalue_reference_t<std::add_const_t<T>>>}.
+Instead we propose that for a \tcode{generator<T>},
+its reference type be \tcode{conditional_t<is_reference_v<T>, T, const T\&>}.
 
-\newcommand{\cellif}{\cellcolor{red!25}IF}
-\newcommand{\cellid}{\cellcolor{red!70}IF}
+\newcommand{\cellif}{\cellcolor{red!25}Ill-formed}
+\newcommand{\cellid}{\cellcolor{red!70}Ill-formed}
 \newcommand{\cellbl}{\cellcolor{green!70}0}
 \newcommand{\cellzr}{\cellcolor{green!25}0}
 \newcommand{\cellon}{\cellcolor{orange!25}1}
 
 
-\begin{tabular}{|c|c|c|c|c|}
-    \hline
-    First parameter &  reference type & default value& can yield mutable lvalue ref?\\ \hline
-    \tcode{int} & \tcode{const int\&} & \tcode{int} & No \\ \hline
-    \tcode{const int\&} & \tcode{const int\&} & \tcode{int} & No \\ \hline
-    \tcode{int\&} & \tcode{int\&} & \tcode{int} & Yes \\ \hline
-    \tcode{int\&\&} & \tcode{int\&\&} & \tcode{int} & No \\ \hline
-    \tcode{const int\&\&} & \tcode{const int\&\&} & \tcode{int} & No \\ \hline
+\begin{tabular}{|c|c|c|c|}
+\hline
+First parameter       & reference type        & default value & can yield mutable lvalue ref? \\ \hline
+\tcode{int}           & \tcode{const int\&}   & \tcode{int}   & No                            \\ \hline
+\tcode{const int\&}   & \tcode{const int\&}   & \tcode{int}   & No                            \\ \hline
+\tcode{int\&}         & \tcode{int\&}         & \tcode{int}   & Yes                           \\ \hline
+\tcode{int\&\&}       & \tcode{int\&\&}       & \tcode{int}   & No                            \\ \hline
+\tcode{const int\&\&} & \tcode{const int\&\&} & \tcode{int}   & No                            \\ \hline
 \end{tabular}
 
-Attempts have been made to characterize the exact relations between reference, value, storage, and co_yield exception types and categories.
+Attempts have been made to characterize the exact relations between reference, value, storage, and \tcode{co_yield} exception types and categories.
 Ultimately, a simpler mental model is to characterize what expressions can be yielded for a given reference type and how many copies are made for each scenario.
 
 \begin{tabular}{|c|c|c|c|c|}
-    \hline
-    First parameter & \tcode{co_yield const T\&} & \tcode{co_yield T\&} & \tcode{co_yield T\&\&}& \tcode{co_yield U\&\&}\\ \hline
-    \tcode{T}           & \cellbl & \cellbl & \cellbl & \cellon \\ \hline
-    \tcode{const T\&}   & \cellzr & \cellzr & \cellzr & \cellon \\ \hline
-    \tcode{T\&}         & \cellif & \cellzr & \cellif & \cellif \\ \hline
-    \tcode{T\&\&}       & \cellif & \cellif & \cellzr & \cellon \\ \hline
-    \tcode{const T\&\&} & \cellif & \cellif & \cellzr & \cellon \\ \hline
+\hline
+First parameter & \tcode{co_yield const T\&} & \tcode{co_yield T\&} & \tcode{co_yield T\&\&} & \tcode{co_yield U\&\&} \\ \hline
+\tcode{T}           & \cellbl & \cellbl & \cellbl & \cellon \\ \hline
+\tcode{const T\&}   & \cellzr & \cellzr & \cellzr & \cellon \\ \hline
+\tcode{T\&}         & \cellif & \cellzr & \cellif & \cellif \\ \hline
+\tcode{T\&\&}       & \cellif & \cellif & \cellzr & \cellon \\ \hline
+\tcode{const T\&\&} & \cellif & \cellif & \cellzr & \cellon \\ \hline
 \end{tabular}
 
 In this table, we see that only \tcode{co_yield} that requires conversion incurs copy, which is expected.
@@ -214,16 +218,14 @@ so \tcode{generator} can only store a pointer to that reference.
 The type of the stored expression is the reference type with its reference qualifiers stripped, but that is an implementation
 detail that is not observable and is therefore of limited interest. Of course, that type needs to be constructible from yielded values.
 
-Besides the T case, this behaves very much like returning from a function that is intended.
+Besides the \tcode{T} case, this behaves very much like returning from a function that is intended.
 
 \subsection{Move-only and immovable types}
-
 LEWG was interested in how this works with \tcode{generator} of move-only and immovable types.
-
 
 \begin{tabular}{|c|c|c|c|}
 \hline
-First parameter & \tcode{co_yield const T\&} & \tcode{co_yield T\&} & \tcode{co_yield T\&\&}\\ \hline
+First parameter & \tcode{co_yield const T\&} & \tcode{co_yield T\&} & \tcode{co_yield T\&\&} \\ \hline
 \tcode{move_only}           & \cellbl & \cellbl & \cellbl \\ \hline
 \tcode{const move_only\&}   & \cellzr & \cellzr & \cellzr \\ \hline
 \tcode{move_only\&}         & \cellif & \cellzr & \cellif \\ \hline
@@ -242,25 +244,22 @@ However, to be able to move from a move only reference type, the coroutine has t
 
 \begin{colorblock}
 auto f = []() -> std::generator<move_only> { co_yield move_only{}; }();
-for(auto&& x : f) {
+for (auto&& x : f) {
     move_only mo = std::move(x); // ill-formed, decltype(x) is const move_only&
 }
 
 auto f = []() -> std::generator<move_only&&> { co_yield move_only{}; }();
-for(auto&& x : f) {
-    move_only mo = x // ok
+for (auto&& x : f) {
+    move_only mo = x; // ok
 }
 
 auto f = []() -> std::generator<move_only&> { move_only m; co_yield m; }();
-for(auto&& x : f) {
-    move_only mo = std::move(x) // dicey but okay
+for (auto&& x : f) {
+    move_only mo = std::move(x); // dicey but okay
 }
-
 \end{colorblock}
 
 \subsection{Potential downsides}
-
-
 \begin{colorblock}
 auto f = []() -> std::generator<MyType> {
     MyType t;
@@ -272,10 +271,8 @@ In the example above \tcode{std::move} doesn't move. Arguably more than usual.
 Indeed the code expands to something similar to:
 
 \begin{colorblock}
-
 auto&& __temp = std::move(t);
 yield_value(_temp); // <=> promise.value = std::addressof(__temp); // no move
-
 \end{colorblock}
 
 Of course, a move would not have occured for a \tcode{std::generator<const MyType\&>} either as these things are identical.
@@ -310,15 +307,15 @@ but it is very easy to misuse, consider:
 
 \begin{colorblock}
 auto f = []() -> std::generator<std::string> { co_yield "footgun"; }();
-for(auto&& x : f) {
+for (auto&& x : f) {
     auto y = x; // nothing suggest a move
     y.transform();
-    if(x != y) {
-        // always triggers, likely to be supprising
+    if (x != y) {
+        // always triggers, likely to be surprising
     }
 }
-
 \end{colorblock}
+
 We rejected this option.
 
 
@@ -355,27 +352,28 @@ This proposal supports specifying both the "yielded" type, which is the iterator
 This allow ranges to handle proxy types and wrapped \tcode{reference}, like this implementation of \tcode{zip}:
 
 \begin{colorblock}
-    template<std::ranges::input_range Rng1, std::ranges::input_range Rng2>
-    generator<
-        std::tuple<std::ranges::range_reference_t<Rng1>, std::ranges::range_reference_t<Rng2>,
-        std::tuple<std::ranges::range_value_t<Rng1>, std::ranges::range_value_t<Rng2>>>
-    zip(Rng1 r1, Rng2 r2) {
-        auto it1 = std::ranges::begin(r1);
-        auto it2 = std::ranges::begin(r2);
-        auto end1 = std::ranges::end(r1);
-        auto end2 = std::ranges::end(r2);
-        while (it1 != end1 && it2 != end2) {
-            co_yield {*it1, *it2};
-            ++it1; ++it2;
-        }
+namespace ranges = std::ranges;
+
+template<ranges::input_range Rng1, ranges::input_range Rng2>
+std::generator<
+    std::tuple<ranges::range_reference_t<Rng1>, ranges::range_reference_t<Rng2>>,
+    std::tuple<ranges::range_value_t<Rng1>, ranges::range_value_t<Rng2>>>
+zip(Rng1 r1, Rng2 r2) {
+    auto it1 = ranges::begin(r1);
+    auto it2 = ranges::begin(r2);
+    auto end1 = ranges::end(r1);
+    auto end2 = ranges::end(r2);
+    for (; it1 != end1 && it2 != end2; ++it1, ++it2) {
+        co_yield {*it1, *it2};
     }
+}
 \end{colorblock}
 
 In this second example, using \tcode{string} as value type ensures that calling code can take the necessary steps
-to make sure iterating over a generator would not invalidate any of the yielded values
+to make sure iterating over a generator would not invalidate any of the yielded values.
+%% FIXME: That isn't precisely what's happening here.
 
 \begin{colorblock}
-
 // Yielding string literals : always fine
 std::generator<std::string_view> string_views() {
     co_yield "foo";
@@ -395,9 +393,8 @@ std::generator<std::string_view, std::string> strings() {
 
 // conversion to a vector of strings
 // If the value_type was string_view, it would convert to a vector of string_view,
-// which would lead to undefined beavior as the string_views may get invalidated upon iteration!
+// which would lead to undefined behavior as the string_views may get invalidated upon iteration!
 auto v = std::ranges::to<vector>(strings()); // (@{\paper{P1206R3}}@)
-
 \end{colorblock}
 
 
@@ -966,7 +963,7 @@ constexpr Allocator get_allocator() const noexcept;
 
 namespace std {
     template<class Ref, class Value = remove_cvref_t<Ref>, class Allocator = void>
-        requires common_reference_with<Ref&&, Value&>
+        requires common_reference_with<Ref&&, Value&>@\footnote{FIXME: this is insufficient to guarantee that \tcode{iterator} is \tcode{indirectly_readable}.}@
     class generator;
 
     template<class Ref, class Value, class Allocator>
@@ -995,12 +992,12 @@ Specializations of \tcode{generator} model \tcode{view} and \tcode{input_range}.
 \begin{example}
     \begin{codeblock}
         std::generator<int> iota(int start = 0) {
-            while(true)
+            while (true)
                 co_yield start++;
         }
 
         void f() {
-            for(auto i : iota() | std::views::take(3))
+            for (auto i : iota() | std::views::take(3))
                 std::cout << i << ' '; // prints 0 1 2
         }
     \end{codeblock}
@@ -1130,16 +1127,17 @@ default_sentinel_t end() const noexcept;
 \end{itemdescr}
 
 
-\rSec3[coroutine.generator.promise]{Exposition-only class template \tcode{generator::promise_type_}}
+\rSec3[coroutine.generator.promise]{class \tcode{generator::promise_type}}
 
 \begin{codeblock}
 
-template <class Ref, class Value, class Allocator>
-class generator<Ref, Value, Allocator>::promise_type_ {
+template<class Ref, class Value, class Allocator>
+    requires common_reference_with<Ref&&, Value&>
+class generator<Ref, Value, Allocator>::promise_type {
 
     friend generator;
 
-    // \textbf{This doesn't work if a Ref is a reference type}
+    // \textbf{This doesn't work if Ref is a reference type}
     // \textbf{we either need some kind of wrapper (see manual_lifetime in our \\   implementation, or only store a pointer in all cases)}
 
     union {
@@ -1152,35 +1150,32 @@ class generator<Ref, Value, Allocator>::promise_type_ {
     }
 
 public:
-
-    generator<Ref, Value, Allocator> get_return_object() noexcept;
+    generator get_return_object() noexcept;
 
     suspend_always initial_suspend() noexcept;
 
-    auto final_suspend() noexcept;
+    auto final_suspend() noexcept; // FIXME: not specified
 
-    @\unspec@ yield_value(const Ref & value)
-    noexcept(is_nothrow_move_constructible_v<Ref>);
+    @\unspec@ yield_value(const Ref& value) noexcept(is_nothrow_move_constructible_v<Ref>);
 
-    template <class T>
-    requires is_convertible_v<T, Ref>
+    template<convertible_to<Ref> T>
     @\unspec@ yield_value(T&& x) noexcept(is_nothrow_constructible_v<Ref, T>);
 
-    template <class TVal, class TAlloc>
+    template<class TVal, class TAlloc>
     @\unspec@ yield_value(elements_of<generator<Ref, TVal, TAlloc>> g) noexcept; // \seebelownc
 
     template<ranges::input_range R, class Allocator>
-    requires convertible_to<ranges::range_reference_t<R>, Ref>
+        requires convertible_to<ranges::range_reference_t<R>, Ref>
     @\unspec@ yield_value(elements_of<R, Allocator> rng); // \seebelownc
 
     void await_transform() = delete;
 
-    void return_void() noexcept {};
+    void return_void() noexcept {}
 
     void unhandled_exception();
 
     static void* operator new(size_t size) requires same_as<Allocator, void>;
-    static void* operator new(size_t size) requires (!same_as<Allocator, void> && is_default_constructible_v<Allocator>);
+    static void* operator new(size_t size) requires default_initializable<Allocator>;
 
     template<class Alloc, class... Args>
     static void* operator new(size_t size, allocator_arg_t, Alloc& alloc, Args&...);
@@ -1196,14 +1191,13 @@ public:
 
 
 \begin{itemdecl}
-generator<Ref, Value, Allocator> get_return_object() noexcept;
+generator get_return_object() noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
 \effects Equivalent to:
 \begin{codeblock}
-    return generator<Ref, Value, Allocator>{
-        coroutine_handle<promise_type>::from_promise(*this)};
+    return generator{coroutine_handle<promise_type>::from_promise(*this)};
 \end{codeblock}
 \end{itemdescr}
 
@@ -1212,7 +1206,7 @@ suspend_always initial_suspend() noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
-\returns \tcode{suspend_always\{\}}.
+\returns \tcode{\{\}}.
 \end{itemdescr}
 
 
@@ -1221,31 +1215,26 @@ suspend_always initial_suspend() noexcept;
     noexcept(is_nothrow_move_constructible_v<Ref>);
 \end{itemdecl}
 \begin{itemdecl}
-template <class T>
-requires is_convertible_v<T, Ref>
+template<convertible_to<Ref> T>
 @\unspec@ yield_value(T&& x)
     noexcept(is_nothrow_constructible_v<Ref, T>);
 \end{itemdecl}
 
 \begin{itemdescr}
 \effects
-Initialises \tcode{value_} from \tcode{static_cast<decltype(x)>(x)};
-\returns An implementation-defined awaitable type.
+Initialises \tcode{value_} with \tcode{std::forward<T>(x)}.
 
+\returns An implementation-defined awaitable type\footnote{FIXME: What's an "awaitable type"?}.
 \end{itemdescr}
 
 
 \begin{itemdecl}
-template <class TVal, class TAlloc>
+template<class TVal, class TAlloc>
 auto yield_value(elements_of<generator<Ref, TVal, TAlloc>> g) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
-
-\mandates
-\begin{itemize}
-\item \tcode{TAlloc} meets the \tcode{Cpp17Allocator} requirements,
-\end{itemize}
+\mandates \item \tcode{TAlloc} meets the \tcode{Cpp17Allocator} requirements.
 
 \effects
 Execution is transferred to the coroutine represented by \tcode{g.coroutine_} until its completion.
@@ -1259,13 +1248,14 @@ before variables with automatic storage duration in the scope of the coroutine d
 Generators can transfer control recursively.
 \end{note}
 
-\returns An implementation-defined \tcode{awaitable} type which takes ownership of the generator \tcode{g}.
-
+\returns
+An implementation-defined \tcode{awaitable} type\footnote{FIXME: ditto "What's an 'awaitable type'"; why is \tcode{awaitable} in code font?}
+which takes ownership of the generator \tcode{g}.
 \end{itemdescr}
 
 
 \begin{itemdecl}
-template<std::ranges::input_range R, class Allocator>
+template<ranges::input_range R, class Allocator>
 requires convertible_to<ranges::range_reference_t<R>, Ref>
 auto yield_value(elements_of<R, Allocator> rng);
 \end{itemdecl}
@@ -1275,21 +1265,18 @@ auto yield_value(elements_of<R, Allocator> rng);
 Equivalent to:
 \begin{codeblock}
 {
-    return yield_value(std::ranges::elements_of([](R&& rng, allocator_arg_t, Allocator alloc)
+    return yield_value(ranges::elements_of([](R&& rng, Allocator alloc)
     -> generator<Ref, Value, Allocator> {
-        auto it = std::ranges::begin(rng);
-        auto itEnd = std::ranges::end(rng);
-        while (it != itEnd) {
+        const auto itEnd = ranges::end(rng);
+        for (auto it = ranges::begin(rng); it != itEnd ++it) {
             co_yield *it;
-            ++it;
         }
-    }(std::rng.range()), rng.get_allocator())));
+    }(rng.range(), rng.get_allocator())));
 }
 \end{codeblock}
 
 The return object is of an implementation-defined type \tcode{T} such that
 \tcode{is_same_v<coroutine_traits<T>::promise_type, coroutine_traits<generator>::promise_type>} is \tcode{true}.
-
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1305,17 +1292,22 @@ static void* operator new(size_t size) requires same_as<Allocator, void>;
 \end{itemdecl}
 
 \begin{itemdescr}
-\effects Allocates the coroutine state with \tcode{std::allocator}.
+\effects
+Equivalent to: \tcode{return allocator<byte>\{\}::allocate(size);}
 \end{itemdescr}
 
 \begin{itemdecl}
-static void* operator new(size_t size) requires (!same_as<Allocator, void> && is_default_constructible_v<Allocator>);
+static void* operator new(size_t size) requires default_initializable<Allocator>;
 \end{itemdecl}
 
 \begin{itemdescr}
-\effects Allocates the coroutine state with a default-constructed instance of \tcode{Allocator}.
+\effects
+Equivalent to:
+\begin{codeblock}
+Allocator alloc;
+return allocator_traits<Allocator>::allocate(alloc, size);
+\end{codeblock}
 \end{itemdescr}
-
 
 \begin{itemdecl}
 template<class Alloc, class... Args>
@@ -1336,7 +1328,7 @@ static void* operator new(size_t size, This&, allocator_arg_t, Alloc& alloc, Arg
 \effects Allocates the coroutine state with \tcode{Alloc}.
 
 \begin{note}
-If \tcode{std::allocator_traits<Alloc>::is_always_equal::value} is \tcode{false} or if \tcode{is_default_constructible_v<Alloc>} is \tcode{false}, \tcode{alloc} is stored in the allocation for the coroutine state.
+If \tcode{allocator_traits<Alloc>::is_always_equal::value} is \tcode{false} or if \tcode{default_initializable<Alloc>} is \tcode{false}, \tcode{alloc} is stored in the allocation for the coroutine state.
 \end{note}
 
 \end{itemdescr}
@@ -1353,35 +1345,34 @@ Deallocate the coroutine state with an instance of the allocator equivalent to t
 
 \begin{codeblock}
 
-template <class Ref, class Value, class Allocator>
+template<class Ref, class Value, class Allocator>
+    requires common_reference_with<Ref&&, Value&>
 class generator<Ref, Value, Allocator>::iterator {
 private:
-    std::coroutine_handle<promise_type> coroutine_; // \expos
+    coroutine_handle<promise_type> coroutine_; // \expos
 
 public:
-    using iterator_category = std::input_iterator_tag;
-    using difference_type = std::ptrdiff_t;
+    using iterator_category = input_iterator_tag;
+    using difference_type = ptrdiff_t;
     using value_type = promise_type::value_type;
     using reference = promise_type::reference;
 
     iterator(const iterator&) = delete;
-
     iterator(iterator&& other) noexcept;
 
+    iterator& operator=(const iterator&) = delete;
     iterator& operator=(iterator&& other) noexcept;
-
-
 
     bool operator==(default_sentinel_t) const noexcept;
 
     iterator& operator++();
     void operator++(int);
 
-    reference operator*() const noexcept(std::is_nothrow_copy_constructible_v<reference>);
+    reference operator*() const noexcept(is_nothrow_copy_constructible_v<reference>);
 
 private:
-    friend class generator<Ref, Value, Allocator>;
-    explicit iterator(std::coroutine_handle<promise_type> coroutine) noexcept; // \expos
+    friend class generator;
+    explicit iterator(coroutine_handle<promise_type> coroutine) noexcept; // \expos
 };
 
 \end{codeblock}
@@ -1406,7 +1397,7 @@ Equivalent to \tcode{coroutine_ = exchange(other.coroutine_, \{\});}
 \end{itemdescr}
 
 \begin{itemdecl}
-explicit iterator(std::coroutine_handle<promise_type> coroutine) noexcept;
+explicit iterator(coroutine_handle<promise_type> coroutine) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
@@ -1452,7 +1443,7 @@ Equivalent to:
 
 \begin{itemdecl}
 reference operator*() const
-noexcept (noexcept(std::is_nothrow_copy_constructible_v<reference>));
+  noexcept(noexcept(is_nothrow_copy_constructible_v<reference>));
 \end{itemdecl}
 
 \begin{itemdescr}
@@ -1502,14 +1493,14 @@ Insert into [version.syn]
     \url{https://github.com/ericniebler/range-v3}
 
     \bibitem[Implementation]{Implementation}
-    Lewis Baker, Corentin Jabot
+    Casey Carter, Lewis Baker, Corentin Jabot
     \emph{\tcode{std::generator} implementation}\newline
-    \url{https://godbolt.org/z/T58h1W}
+    \url{https://godbolt.org/z/GxPKMd4js}
 
-    \bibitem[N4861]{N4861}
-    Richard Smith
+    \bibitem[N4901]{N4901}
+    Thomas Köppe
     \emph{Working Draft, Standard for Programming Language C++}\newline
-    \url{https://wg21.link/N4861}
+    \url{https://wg21.link/N4901}
 
 
 \end{thebibliography}
