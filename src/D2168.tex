@@ -386,7 +386,7 @@ so \tcode{*i} for an iterator \tcode{i} is a glvalue -
 or a copy-constructible \cv-unqualified object type -
 so \tcode{*i} is a prvalue.
 We preserve the prior design's feature that yielded values must convert to
-\tcode{conditional_t<is_reference_v<Reference>, Reference, const Reference&>}
+\tcode{conditional_t<is_reference_v<Reference>, Reference, const Reference\&>}
 which allows implementations to either store a pointer to the converted glvalue in the coroutine promise or stash a the value in an awaitable returned from \tcode{yield_value}.
 
 This approach keeps the desirable features of the R4 design,
@@ -398,7 +398,7 @@ the expense of copy-constructing a new prvalue to yield from each iterator deref
 
 \subsection{Separately specifyable Value Type}
 
-This proposal supports specifying both the "yielded" type, which is the iterator ""reference"" type (not required to be a reference) and its corresponding value type.
+This proposal supports specifying both the "yielded" type, which is the iterator's reference type (not required to be a reference) and its corresponding value type.
 This allow ranges to handle proxy types and wrapped \tcode{reference}, like this implementation of \tcode{zip}:
 
 \begin{colorblock}
@@ -442,7 +442,8 @@ std::generator<std::string, std::string_view> strings() {
 
 // conversion to a vector of strings
 // If the value_type was string_view, it would convert to a vector of string_view,
-// which would lead to undefined behavior as the string_views may get invalidated upon iteration!
+// which would lead to undefined behavior operating on elements of v that were
+// invalidated while iterating through the generator.
 auto v = std::ranges::to<vector>(strings()); // (@{\paper{P1206R3}}@)
 \end{colorblock}
 
@@ -661,9 +662,9 @@ While we think a single \tcode{generator} type is sufficient and offers a better
 \begin{itemize}
     \item A single \tcode{generator} type supporting recursive calls (this proposal).
 
-    \item A separate type \tcode{recursive_generator} that can yield values from either \tcode{recursive_generator} or a \tcode{generator}. That may offer very negligible performance benefits, same memory usage.
+    \item A separate type \tcode{recursive_generator} that can yield values from either a \tcode{recursive_generator} or a \tcode{generator}. That may offer very negligible performance benefits, same memory usage.
 
-    \item A separate {recursive_generator} type which can only yield values from other \tcode{recursive_generator}.
+    \item A separate {recursive_generator} type which can only yield values from other \tcode{recursive_generator}s.
 
     That third option would make the following ill-formed:
 
@@ -700,7 +701,7 @@ different value type or allocator type does not preclude symmetric transfer (see
 
 \section{Allocator support}
 
-In line with the design exploration done in section 2 of \paper{P1681R0}, \tcode{std::generator} can support both stateless and stateful allocators and strive to minimize the interface verbosity for stateless allocators by templating both the generator itself and the \tcode{promise_type}'s \tcode{new} operator
+In line with the design exploration done in section 2 of \paper{P1681R0}, \tcode{std::generator} supports both stateless and stateful allocators and strives to minimize the interface verbosity for stateless allocators by templating both the generator itself and the \tcode{promise_type}'s \tcode{new} operator
 on the allocator type. Details for this interface are found in \paper{P1681R0}.
 
 \tcode{coroutine_parameter_preview_t} such as discussed in section 3 of \paper{P1681R0} has not been explored in this paper.
@@ -711,14 +712,12 @@ on the allocator type. Details for this interface are found in \paper{P1681R0}.
     }
 
     template <class Allocator>
-    std::generator<int>
-    allocator_example(std::allocator_arg_t, Allocator alloc) {
+    std::generator<int> allocator_example(std::allocator_arg_t, Allocator alloc) {
         co_yield 42;
     }
 
     my_allocator<std::byte> alloc;
     input_range auto rng = allocator_example<my_allocator<std::byte>>(std::allocator_arg, alloc);
-
 \end{colorblock}
 
 The proposed interface requires that, if an allocator is provided, it is the second argument to the coroutine function,
@@ -728,7 +727,6 @@ The required argument order might be a limitation if any other argument is requi
 
 We think it is important that all standard and user coroutines types can accommodate similar interfaces for allocator support.
 In fact, the implementation for that allocator support can be shared amongst \tcode{generator}, \tcode{lazy}, and other standard types.
-
 
 \textbf{By default \tcode{std::generator} type erases the allocator type, and uses \tcode{std::allocator} unless an allocator is provided to
 the coroutine function}.
