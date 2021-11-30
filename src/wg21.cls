@@ -108,7 +108,7 @@
     \begin{tabular}{ll}%
       Document \#:&\@docnumber\\%
       Date:       &\today\\%
-      \ifdef{\@project}{Project:    &\@project\\}{Programming Language C++\\}%
+      Project:    &\ifdef{\@project}{\@project}{Programming Language C++}\\%
       Audience:   &\@audience\\%
       \ifdef{\@category}{Proposal category:&\@category\\}{}
       Reply-to:   &\@author\ \textless\href{mailto:\@email}{\@email}\textgreater%
