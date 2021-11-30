@@ -69,7 +69,7 @@ that models \tcode{std::ranges::input_range}.
 \section{Example}
 
 \begin{colorblock}
-    std::generator<int> fib(int max) {
+    std::generator<int> fib() {
         auto a = 0, b = 1;
         while (true) {
             co_yield std::exchange(a, std::exchange(b, a + b));
@@ -77,8 +77,8 @@ that models \tcode{std::ranges::input_range}.
     }
 
     int answer_to_the_universe() {
-        auto rng = fib() | std::views::drop(6) | std::views::take(3)
-        return std::ranges::fold_left(range, 0, std::plus{});
+        auto rng = fib() | std::views::drop(6) | std::views::take(3);
+        return std::ranges::fold_left(std::move(range), 0, std::plus{});
     }
 \end{colorblock}
 
