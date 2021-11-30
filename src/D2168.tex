@@ -35,7 +35,7 @@ that models \tcode{std::ranges::input_range}.
   so the value type precedes the reference type.
   This allows the reference type to be more easily defaulted,
   which feels more consistent with the R4 design.
-\item Remove concerns about the $O(1)$ destruction requirement for \tcode{view},
+\item Remove concerns about the $\bigoh{1}$ destruction requirement for \tcode{view},
   which has been relaxed by P2415R2 ``What is a view?'' \cite{P2415R2}.
 \end{itemize}
 
@@ -121,22 +121,46 @@ Multiple options are available as to where to put the \tcode{generator} class.
 
 \section{Reference type}
 
-\tcode{generator} takes 3 template parameters:
+\tcode{generator} has 3 template parameters:
 
-\tcode{generator<Type, Value, Allocator>}
+\tcode{generator<Value, Reference = const Value\&, Allocator = void>}
 
 \begin{itemize}
-\item a \tcode{Type} from which the \tcode{reference} type is derived
-\item a \tcode{Value} type, whose default is derived from the Reference type, and which has a \tcode{common\_reference} with the reference type
-\item An allocator or \tcode{use_allocator_arg} which is the default value.
+\item a \tcode{Value} type,
+  a \cv-unqualified object type that specifies the value type
+  of the \tcode{generator}'s range and iterators,
+\item a \tcode{Reference} type that specifies the reference type
+  of the \tcode{generator}'s range and iterators, and
+\item an \tcode{Allocator} type that is rebound to allocate the coroutine state,
+  which can be \tcode{void} to type-erase
+  any allocator specified as a coroutine argument,
+  defaulting to \tcode{allocator<byte>} when none is specified.
 \end{itemize}
 
-Only the first parameter is required, and we expect most users to concern themselves with that first parameter, as good defaults are provided for the other two.
-That first parameter controls the iterator's \tcode{reference} type. But that in turns informs both the types passed to \tcode{yield_value},
-which also impacts how values are stored in the implementation.
+Only the first parameter is required, and
+we expect most users to concern themselves with that first parameter,
+as good defaults are provided for the other two.
+The first parameter controls the iterator's value type, and
+- indirectly via the default - its reference type.
+The reference type in turn informs
+the types passed to \tcode{yield_value}.
+This first parameter, therefore, does a lot of heavy lifting.
 
-This first \tcode{Type} parameter, therefore, does a lot of heavy lifting.
-In earlier versions of this paper, the reference type was exactly the first template parameter.
+\subsection{Obsolete discussion about reference specification}
+
+\begin{note}
+Before R5, \tcode{generator}'s first parameter
+\tcode{Type} denoted the reference type of the range / iterators, and
+the value type was defaulted to \tcode{remove_cvref_t<Type>}.
+The following sections of design discussion are written
+in terms of that ordering for continuity.
+The ``R5 adjustment'' section will describe our rationale
+for reordering the first two parameters and
+how the result relates to the older design discussed here.
+\end{note}
+
+In earlier versions of this paper,
+the reference type was exactly the first template parameter.
 This had the advantage of being simple.
 But it was a terrible performance trap:
 
@@ -164,12 +188,14 @@ Of course the solution, which we advocated for, is for the user to manually spec
     for (auto&& str : f()) {} // 0 copy
 \end{colorblock}
 
-This works can be explained and is even logical. You get what you asked for.
-It is nonetheless surprising for non-experts that it would create 2 copies.
+This works, can be explained, and is even logical. You get what you asked for.
+It is nonetheless surprising for non-experts that using the simple \tcode{generator<string>} would create 2 copies per \tcode{co_yield}.
 
-To hope users would not routinely forget to use a reference type when using \tcode{std::generator} calls for a heaping barrel of optimism.
+To hope users would not routinely forget
+to use a reference type when using \tcode{std::generator}
+calls for a heaping barrel of optimism.
 
-Instead we propose that for a \tcode{generator<T>},
+We later proposed that for a \tcode{generator<T>},
 its reference type be \tcode{conditional_t<is_reference_v<T>, T, const T\&>}.
 
 \newcommand{\cellif}{\cellcolor{red!25}Ill-formed}
@@ -204,7 +230,8 @@ First parameter & \tcode{co_yield const T\&} & \tcode{co_yield T\&} & \tcode{co_
 
 In this table, we see that only \tcode{co_yield} that requires conversion incurs copy, which is expected.
 Coroutines guarantee that the yielded expression exceeds the lifetime of the \tcode{co_yield} expression,
-so \tcode{generator} can only store a pointer to that reference.
+so \tcode{generator} can usefully store
+a pointer to the object denoted by a yielded xvalue.
 
 \tcode{co_yield} expressions involving conversion can store the yielded value in an awaiter.
 The type of the stored expression is the reference type with its reference qualifiers stripped, but that is an implementation
@@ -267,11 +294,10 @@ auto&& __temp = std::move(t);
 yield_value(_temp); // <=> promise.value = std::addressof(__temp); // no move
 \end{colorblock}
 
-Of course, a move would not have occured for a \tcode{std::generator<const MyType\&>} either as these things are identical.
+Of course, a move would not have occurred for a \tcode{std::generator<const MyType\&>} either as these things are identical.
 It might be suprising?
 The only way to avoid that is to create temporary value for rvalue reference, which would force a move to actually occurs,
 at the cost of performance.
-
 
 \subsection{Alternatives considered}
 
@@ -310,7 +336,6 @@ for (auto&& x : f) {
 
 We rejected this option.
 
-
 \subsubsection{Doing something clever for move-only types}
 
 We considered returning \tcode{T\&} for move_only types so that they can be moved from by default.
@@ -338,6 +363,39 @@ We think this new approach keeps the simplicity of the original design, improves
 
 Thank you LEWG, and in particular Mathias, for highlighting these concerns!
 
+\subsection{R5 adjustment}
+
+It is unfortunate that the R4 design silently alters
+the user's specified reference type,
+and that in doing so it effectively forbids non-reference reference types.
+Ranges with proxy reference types especially would like
+to be able to yield prvalues of class type (proxy references), and
+it would be preferable to avoid a design that makes it impossible to do so.
+
+We observed that reordering the reference and value type parameters
+allows the reference type to be defaulted to a function of the value type,
+and that we could choose that function so as to avoid the pitfall that an inadvertent choice of a non-reference reference type
+can introduce additonal copies.
+
+In R5, \tcode{generator}'s first parameter \tcode{Value} names
+the value type of the range and iterators,
+and the second parameter \tcode{Reference} names
+the reference type of the range and iterators.
+The reference type must be either a core language reference -
+so \tcode{*i} for an iterator \tcode{i} is a glvalue -
+or a copy-constructible \cv-unqualified object type -
+so \tcode{*i} is a prvalue.
+We preserve the prior design's feature that yielded values must convert to
+\tcode{conditional_t<is_reference_v<Reference>, Reference, const Reference&>}
+which allows implementations to either store a pointer to the converted glvalue in the coroutine promise or stash a the value in an awaitable returned from \tcode{yield_value}.
+
+This approach keeps the desirable features of the R4 design,
+making simple things simple,
+but also makes complex things possible.
+Presumably a user who goes to the trouble of explicitly specifying
+the reference type can be trusted to determine if their program can tolerate
+the expense of copy-constructing a new prvalue to yield from each iterator dereference.
+
 \subsection{Separately specifyable Value Type}
 
 This proposal supports specifying both the "yielded" type, which is the iterator ""reference"" type (not required to be a reference) and its corresponding value type.
@@ -348,8 +406,8 @@ namespace ranges = std::ranges;
 
 template<ranges::input_range Rng1, ranges::input_range Rng2>
 std::generator<
-    std::tuple<ranges::range_reference_t<Rng1>, ranges::range_reference_t<Rng2>>,
-    std::tuple<ranges::range_value_t<Rng1>, ranges::range_value_t<Rng2>>>
+    std::tuple<ranges::range_value_t<Rng1>, ranges::range_value_t<Rng2>>,
+    std::tuple<ranges::range_reference_t<Rng1>, ranges::range_reference_t<Rng2>>>
 zip(Rng1 r1, Rng2 r2) {
     auto it1 = ranges::begin(r1);
     auto it2 = ranges::begin(r2);
@@ -363,16 +421,15 @@ zip(Rng1 r1, Rng2 r2) {
 
 In this second example, using \tcode{string} as value type ensures that calling code can take the necessary steps
 to make sure iterating over a generator would not invalidate any of the yielded values.
-%% FIXME: That isn't precisely what's happening here.
 
 \begin{colorblock}
 // Yielding string literals : always fine
-std::generator<std::string_view> string_views() {
+std::generator<std::string_view, std::string_view> string_views() {
     co_yield "foo";
     co_yield "bar";
 }
 
-std::generator<std::string_view, std::string> strings() {
+std::generator<std::string, std::string_view> strings() {
     co_yield "start";
     std::string s;
     for (auto sv : string_views()) {
@@ -393,16 +450,10 @@ auto v = std::ranges::to<vector>(strings()); // (@{\paper{P1206R3}}@)
 \subsection{How to store the yielded value in the promise type?}
 
 There are multiple implementation strategies possible to store the value in the generator.
-A previous revision of this paper always stored a copy of the yielded value, leading to an extra copy.
-
-However, the yielded expression is guaranteed to be alive until the coroutine resumes. It is, therefore, sufficient to store
-its address.
-
-We can take advantage of that fact by only storing a pointer in the generator. When a copy needs to be made
-by \tcode{yield_value} (because the yielded value is not of the same type or cannot bind to the reference type), we can store the value in an awaiter that will remain alive until the end of the co_yield expression.
+An early revision of this paper always stored a copy of the yielded value, leading to an extra copy.
+When a copy needs to be made by \tcode{yield_value} (because the yielded value is not of the same type or cannot bind to the reference type), we can store the value in an awaiter that will remain alive until the end of the co_yield expression:
 
 \begin{colorblock}
-
     std::suspend_always yield_value(const Ref& x) {
         auto& root = rootOrLeaf_.promise();
         root.valuePtr_ = std::addressof(x);
@@ -433,6 +484,13 @@ by \tcode{yield_value} (because the yielded value is not of the same type or can
     }
 \end{colorblock}
 
+% FIXME: Is this still true?
+To support this implementation strategy, the wording does not specify a type for the return value of \tcode{yield_value}.
+
+However, the yielded expression is guaranteed to be alive
+until the coroutine resumes.
+It is, therefore, sufficient to store its address.
+We can take advantage of that fact by storing only a pointer in the generator.
 
 A drawback of this solution is that the yielded value is only destroyed at the end of the
 full expression:
@@ -440,12 +498,10 @@ full expression:
     (co_yield x, co_yield y); // x is destroyed after y is yielded.
 \end{colorblock}
 
-We think this is a reasonable tradeoff as it avoids a copy.
+We think this is a reasonable tradeoff as
+it avoids the copy needed on the older approach.
 Further optimization could be done to copy small values - and avoid an indirection.
 But it is unclear what the cost of this indirection is, as none of these accesses should result in cache misses).
-
-To support this implementation strategy, the wording does not specify a type for the return value of \tcode{yield_value}.
-
 
 \subsection{Recursive generator}
 
@@ -455,20 +511,22 @@ as elements of the current \tcode{generator}.
 
 Example: A \tcode{generator} can \tcode{co_yield} other generators of the same type
 \begin{colorblock}
-    generator<const std::string&> delete_rows(std::string table, std::vector<int> ids) {
+    std::generator<const std::string&> delete_rows(std::string table, std::vector<int> ids) {
         for (int id : ids) {
-            co_yield std::format("DELETE FROM {0} WHERE id = {1}", table, id);
+            co_yield std::format("DELETE FROM {0} WHERE id = {1};", table, id);
         }
     }
 
-    generator<const std::string&> all_queries() {
-        co_yield elements_of(delete_rows("user", {4, 7, 9 10}));
-        co_yield elements_of(delete_rows("order", {11, 19}));
+    std::generator<const std::string&> all_queries() {
+        co_yield std::ranges::elements_of(delete_rows("user", {4, 7, 9 10}));
+        co_yield std::ranges::elements_of(delete_rows("order", {11, 19}));
     }
 \end{colorblock}
 
 Example: A \tcode{generator} can also be used recursively
 \begin{colorblock}
+    using namespace std;
+
     struct Tree {
         Tree* left;
         Tree* right;
@@ -476,9 +534,9 @@ Example: A \tcode{generator} can also be used recursively
     };
 
     generator<int> visit(Tree& tree) {
-        if (tree.left) co_yield elements_of(visit(*tree.left));
+        if (tree.left) co_yield ranges::elements_of(visit(*tree.left));
         co_yield tree.value;
-        if (tree.right) co_yield elements_of(visit(*tree.right));
+        if (tree.right) co_yield ranges::elements_of(visit(*tree.right));
     }
 \end{colorblock}
 
@@ -494,40 +552,42 @@ Example: Non-recursive form incurs O(depth) resumptions/suspensions per element
 and is more cumbersome to write
 
 \begin{colorblock}
+    using namespace std;
+
     generator<int> slow_visit(Tree& tree) {
         if (tree.left) {
-            for (int x : elements_of(visit(*tree.left)))
-            co_yield x;
+            for (int x : ranges::elements_of(visit(*tree.left)))
+                co_yield x;
         }
         co_yield tree.value;
         if (tree.right) {
-            for (int x : elements_of(visit(*tree.right)))
-            co_yield x;
+            for (int x : ranges::elements_of(visit(*tree.right)))
+                co_yield x;
         }
     }
 \end{colorblock}
 
 Exceptions that propagate out of the body of nested \tcode{generator} coroutines
 are rethrown into the parent coroutine from the \tcode{co_yield} expression rather
-than propagating out of the top-level \tcode{iterator::operator++()}. This follows the mental model that  \tcode{co_yield someGenerator} is semantically equivalent to manually
+than propagating out of the top-level \tcode{iterator::operator++()}. This follows the mental model that \tcode{co_yield someGenerator} is semantically equivalent to manually
 iterating over the elements and yielding each element.
 
 For example: \tcode{nested_ints()} is semantically equivalent to \tcode{manual_ints()}
 \begin{colorblock}
-    generator<int> might_throw() {
+    std::generator<int> might_throw() {
         co_yield 0;
         throw some_error{};
     }
 
-    generator<int> nested_ints() {
+    std::generator<int> nested_ints() {
         try {
-            co_yield elements_of(might_throw());
+            co_yield std::ranges::elements_of(might_throw());
         } catch (const some_error&) {}
         co_yield 1;
     }
 
     // nested_ints() is semantically equivalent to the following:
-    generator<int> manual_ints() {
+    std::generator<int> manual_ints() {
         try {
             for (int x : might_throw()) {
                 co_yield x;
@@ -547,9 +607,9 @@ For example: \tcode{nested_ints()} is semantically equivalent to \tcode{manual_i
     }
 \end{colorblock}
 
-\subsection{\tcode{elements_of}}
+\subsection{\tcode{std::ranges::elements_of}}
 
-\tcode{elements_of} is a utility function that prevents ambiguity when a nested generator type is convertible to the value type
+\tcode{ranges::elements_of} is a utility function that prevents ambiguity when a nested generator type is convertible to the value type
 of the present generator
 
 \begin{colorblock}
@@ -577,10 +637,10 @@ For convenience, we further propose that \tcode{co_yield elements_of(x)} be exte
 yielding the values of arbitrary ranges beyond generators, ie
 
 \begin{colorblock}
-    generator<int> f()
+    std::generator<int> f()
     {
         std::vector<int> v = /*... */;
-        co_yield elements_of(v);
+        co_yield std::ranges::elements_of(v);
     }
 
 \end{colorblock}
@@ -1485,7 +1545,7 @@ Insert into [version.syn]
     \bibitem[Implementation]{Implementation}
     Casey Carter, Lewis Baker, Corentin Jabot
     \emph{\tcode{std::generator} implementation}\newline
-    \url{https://godbolt.org/z/oeKz8d19a}
+    \url{https://godbolt.org/z/7dTfPz9d6}
 
 \end{thebibliography}
 
