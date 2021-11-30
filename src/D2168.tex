@@ -1393,7 +1393,7 @@ iterator& operator=(iterator&& other) noexcept;
 
 \begin{itemdescr}
 \effects
-Equivalent to \tcode{coroutine_ = exchange(other.coroutine_, \{\});}
+Equivalent to: \tcode{coroutine_ = exchange(other.coroutine_, \{\});}
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1419,7 +1419,7 @@ iterator& operator++();
 \end{itemdecl}
 
 \begin{itemdescr}
-\precondition \tcode{!coroutine_.done()} is \tcode{true}.
+\precondition \tcode{coroutine_.done()} is \tcode{false}.
 
 % \effects
 
@@ -1431,7 +1431,7 @@ void operator++(int);
 \end{itemdecl}
 
 \begin{itemdescr}
-\precondition \tcode{!coroutine_.done()} is \tcode{true}.
+\precondition \tcode{coroutine_.done()} is \tcode{false}.
 
 \effects
 Equivalent to:
@@ -1447,7 +1447,7 @@ reference operator*() const
 \end{itemdecl}
 
 \begin{itemdescr}
-\precondition \tcode{!coroutine_.done()} is \tcode{true}.
+\precondition \tcode{coroutine_.done()} is \tcode{false}.
 
 \effects
 Equivalent to:
@@ -1459,7 +1459,7 @@ Equivalent to:
 
 \end{addedblock}
 
-\section{Feature test macros}
+\section{Feature test macro}
 
 Insert into [version.syn]
 
