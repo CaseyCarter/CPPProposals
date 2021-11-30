@@ -35,6 +35,8 @@ that models \tcode{std::ranges::input_range}.
   so the value type precedes the reference type.
   This allows the reference type to be more easily defaulted,
   which feels more consistent with the R4 design.
+\item Remove concerns about the $O(1)$ destruction requirement for \tcode{view},
+  which has been relaxed by P2415R2 ``What is a view?'' \cite{P2415R2}.
 \end{itemize}
 
 \subsection{R4}
@@ -86,9 +88,11 @@ that models \tcode{std::ranges::input_range}.
 \section{Motivation}
 
 C++ 20 had very minimalist library support for coroutines.
-Synchronous generators are an important use case for coroutines, one that cannot be supported without
-the machinery presented in this paper.
-Writing an efficient and correctly behaving recursive generator is non-trivial. The standard should provide one.
+Synchronous generators are an important use case for coroutines,
+one that cannot be supported
+without the machinery presented in this paper.
+Writing an efficient recursive generator is non-trivial;
+the standard should provide one.
 
 
 \section{Design}
@@ -97,20 +101,8 @@ While the proposed \tcode{std::generator} interface is fairly straightforward, a
 
 \subsection{\tcode{input_view}}
 
-\tcode{std::generator} is a non-copyable \tcode{view} which models \tcode{input_range} and spawn move-only iterators.
+\tcode{std::generator} is a move-only \tcode{view} which models \tcode{input_range} and has move-only iterators.
 This is because the coroutine state is a unique resource (even if the coroutine \textit{handle} is copyable).
-Unfortunately, some generators can satisfy the \tcode{view} constraints but fail to model the \tcode{view} O(1)
-destruction requirement:
-
-\begin{colorblock}
-    template <class T>
-    std::generator<T> all(vector<T> vec) {
-        for (auto& e : vec)  {
-            co_yield e;
-        }
-    }
-\end{colorblock}
-
 
 
 \subsection{Header}
@@ -337,7 +329,7 @@ We rejected this option.
 \subsubsection{Keeping the R4 design}
 
 Returning values has the potential to severely impact performance, is inconsistent with other views, and is not necessary.
-It also did not work with non-copyable types.
+It also did not work with move-only types.
 
 The change, along with an implementation strategy described in the "How to store the yielded value in the promise type?" guarantees that
 no copy needs to be made if the reference and yielded types are the same (with qualifiers stripped).
