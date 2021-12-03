@@ -741,9 +741,11 @@ std::generator<int> f(std::allocator_arg_t, Allocator alloc) {}
 f(std::allocator_arg, my_alloc{});
 \end{colorblock}
 
-Returns a generator of type \tcode{std::generator<int, int, void>} where \tcode{void} denotes that the allocator is type erased.
-The allocator is store on the coroutine state if it is stateful or not default constructible; a pointer is always stored so that the \tcode{deallocate} method of the type erased allocator can be called.
-
+Returns a generator of type \tcode{std::generator<int, const int\&, void>}
+where \tcode{void} denotes that the allocator is type erased.
+The allocator is stored in the same allocation as the coroutine state
+if it is stateful or not default constructible; a pointer is always stored so that
+the \tcode{deallocate} method of the type erased allocator can be called.
 
 \textbf{No allocator}
 
@@ -752,35 +754,45 @@ std::generator<int> f() {}
 f();
 \end{colorblock}
 
-Returns a generator of type \tcode{std::generator<int, int, void>} where \tcode{void} denotes that the allocator is type erased.
-A pointer is stored so that the \tcode{deallocate} method of the type erased allocator can be called. The allocator is \tcode{std::allocator} and is not stored on the frame (because it is stateless)
+Again, returns a generator of type \tcode{std::generator<int, const int\&, void>}
+where \tcode{void} denotes that the allocator is type erased.
+A pointer is stored so that
+the \tcode{deallocate} method
+of the type-erased allocator can be called,
+but the default allocator (\tcode{std::allocator})
+need not be stored since it is stateless.
 
 \textbf{Explicit stateless allocator}
 
 \begin{colorblock}
-std::generator<int, int, std::stateless_allocator<int>> f() {}
+std::generator<int, const int&, std::stateless_allocator<int>> f() {}
 f();
 \end{colorblock}
 
-Returns a generator of type \tcode{std::generator<int, int, std::stateless_allocator<int>>}
+Returns a generator of type \tcode{std::generator<int, const int\&, std::stateless_allocator<int>>}
 No extra storage is used for the allocator because it is stateless.
 
 \textbf{Explicit stateful allocator}
 
 \begin{colorblock}
-std::generator<int, int, some_statefull_allocator<int>>
-    f(std::allocator_arg_t,  some_statefull_allocator<int> alloc) {}
-f(std::allocator_arg, some_allocator); // must be convertible to some_statefull_allocator
+std::generator<int, const int\&, some_stateful_allocator<int>>
+    f(std::allocator_arg_t, some_stateful_allocator<int> alloc) {}
+f(std::allocator_arg, some_allocator); // must be convertible to some_stateful_allocator
 \end{colorblock}
 
-Returns a generator of type \tcode{std::generator<int, int, some_statefull_allocator<int>>}
+Returns a generator of type \tcode{std::generator<int, const int\&, some_stateful_allocator<int>>}
 The allocator is copied in the coroutine state.
 
 
 \subsection{Interaction with symmetric transfer and allocator support}
 
-The allocator must be part of the promise type.
-Our implementation uses a base class so that generators of different allocator types can yield each other.
+The allocator must necessarily be part of a coroutine's promise type
+since implementations query the promise for allocation functions.
+
+Our implementation uses a base class to implement the non-allocation behaviors
+for \tcode{generator}'s promise so that generators with different allocator types
+can yield each other.
+
 This leaves with two implementation strategies
 \begin{itemize}
 \item Storing a pointer to the base class in the promise handle
@@ -788,10 +800,10 @@ This leaves with two implementation strategies
 \item Modify the wording as follow to allow \tcode{coroutine_handle<promise_base>::from_address(coro.address());} to be well-formed:
 \end{itemize}
 
-To support yielding nested generator of different allocator types we then have several options:
+To support yielding nested generators with different allocator types we then have several options:
 \begin{itemize}
 \item Leaving implementers find the best strategy with compiler magic
-\item Modify from_address to allow construction from a coroutine of layout compatible type
+\item Modify \tcode{coroutine_handle<T>::from_address}:
 \end{itemize}
 \begin{quote}
 \indexlibrarymember{from_address}{coroutine_handle}%
@@ -805,10 +817,6 @@ static constexpr coroutine_handle<Promise> coroutine_handle<Promise>::from_addre
 on an object of type \cv \changed{\tcode{coroutine_handle<Promise>}}{of type \cv \tcode{coroutine_­handle<T}> where\tcode{T} is any type such that \tcode{is_layout_compatible_v<T, Promise>} is \tcode{true}}.
 \end{itemdescr}
 \end{quote}
-
-Supporting allocators requires storing, in all cases, a function pointer adjacent to the coroutine state (to track a deallocation function),
-along with the allocator itself in the case of stateful allocators.
-
 
 \subsection{Can we postpone adding support for allocator later?}
 
@@ -831,9 +839,13 @@ Folly users found the use of \tcode{Folly:::Generator} to be a lot more efficien
 iterators \cite{P1456R1}, \cite{P1207R0} which forces this implementation to ref-count the coroutine handler.
 
 Our implementation \cite{Implementation} consists of a single type that takes advantage of symmetric transfer to implement
-recursion.
+recursion - it notably works well with three different major standard libraries.
 
 \section{Performance \& benchmarks}
+
+\begin{note}
+These benchmark results are fairly dated now - roughly a year old - and should be taken with a grain of salt.
+\end{note}
 
 Because implementations are still being perfected, and because performance is extremely dependant on whether HALO optimization (see \paper{P0981R0})
 occurs, it is difficult at this time to make definitive statements about the performance of the proposed design.
@@ -882,16 +894,13 @@ The code for these benchmarks, as well as more detailed results, can be found on
 
 \section{Wording}
 
-The following wording is meant to illustrate the proposed API.
-
-
+Drafting Note: Wording is relative to Working Draft N4901 \cite{N4901}. Add the declaration of \tcode{ranges::elements_of} to the \tcode{<ranges>} synopsis:
 
 \rSec2[ranges.syn]{Header \tcode{<ranges>} synopsis}
 
 \begin{codeblock}
-
 namespace std::ranges {
-    ...
+    [...]
 
     template<@\libconcept{input_or_output_iterator}@ I, @\libconcept{sentinel_for}@<I> S, subrange_kind K>
     inline constexpr bool enable_borrowed_range<subrange<I, S, K>> = true;
@@ -900,28 +909,33 @@ namespace std::ranges {
     struct dangling;
 
 \end{codeblock}
-
 \begin{addedblock}
 \begin{codeblock}
-    template<input_range R, class Allocator = allocator<byte>>
-    struct elements_of;
+    // [elementsof.overview], class template elements_of
+    template<range R, class Allocator = allocator<byte>>
+    class elements_of;
 \end{codeblock}
 \end{addedblock}
 \begin{codeblock}
     template<@\libconcept{range}@ R>
     using borrowed_iterator_t = conditional_t<@\libconcept{borrowed_range}@<R>, iterator_t<R>, dangling>;
 
-    ...
+    [...]
 }
 \end{codeblock}
 
+Drafting Note: insert the following new subclause immediately after [range.dangling]:
 
 \begin{addedblock}
 
-\rSec2[ranges.elementsof]{ranges::element_of}
+\rSec2[ranges.elementsof]{class template \tcode{elements_of}}
 
+\rSec3[ranges.elementsof.overview]{Overview}
 
-\tcode{elements_of} is a template that encapsulates a range and acts as a tag in overload sets to disambiguate when a range should be treated as a sequence rather than a single value in generic contexts.
+Specializations of \tcode{elements_of} encapsulate a range and
+act as a tag in overload sets to disambiguate
+when a range should be treated as a sequence
+rather than a single value.
 
 \begin{example}
     \begin{codeblock}
@@ -932,65 +946,63 @@ namespace std::ranges {
     \end{codeblock}
 \end{example}
 
-
 \begin{codeblock}
 namespace std::ranges {
-    template<input_range R, class Allocator = allocator<byte>>
-    struct elements_of {
+    template<range R, class Allocator = allocator<byte>>
+    class elements_of {
     private:
-        [[no_unique_address]] Allocator allocator_; // \expos
+        [[no_unique_address]] Allocator allocator_{}; // \expos
         R&& range_; // \expos
 
     public:
-        explicit constexpr elements_of(R&& r) noexcept
+        constexpr explicit elements_of(R&& r)
+            noexcept(is_nothrow_default_constructible_v<Allocator>)
             requires default_initializable<Allocator>;
 
-        explicit constexpr elements_of(R&& r, Allocator allocator) noexcept;
+        constexpr explicit elements_of(R&& r, Allocator allocator) noexcept;
 
         constexpr elements_of(elements_of&&) = default;
-
         elements_of(const elements_of&) = delete;
 
         constexpr R&& range() noexcept;
         constexpr Allocator get_allocator() const noexcept;
     };
 
-    template<class R>
-    elements_of(R&&) -> elements_of<R>;
-
-    template<class R, class Allocator>
-    elements_of(R&&, Allocator) -> elements_of<R, Allocator>;
+    template<class R, class Allocator = allocator<byte>>
+    elements_of(R&&, Allocator = {}) -> elements_of<R, Allocator>;
 }
 \end{codeblock}
 
-\rSec2[ranges.elementsof.cons]{ranges::elements_of Constructors}
+\rSec3[ranges.elementsof.mem]{Members}
 
 \begin{itemdecl}
-explicit constexpr elements_of(R&& r) noexcept
+constexpr explicit elements_of(R&& r) noexcept
+    noexcept(is_nothrow_default_constructible_v<Allocator>)
     requires default_initializable<Allocator>;
 \end{itemdecl}
 
 \begin{itemdescr}
-\effects   Initializes \tcode{range_} with \tcode{std::forward<R>(r)}.
+\effects
+Initializes \tcode{range_} with \tcode{std::forward<R>(r)}.
 \end{itemdescr}
 
-
 \begin{itemdecl}
-explicit constexpr elements_of(R&& r, Allocator allocator) noexcept;
+constexpr explicit elements_of(R&& r, Allocator allocator) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
-\effects   Initializes \tcode{range_} with \tcode{std::forward<R>(r)} and \tcode{allocator_} with \tcode{std::move(allocator)}.
+\effects
+Initializes \tcode{allocator_} with \tcode{std::move(allocator)} and
+\tcode{range_} with \tcode{std::forward<R>(r)}.
 \end{itemdescr}
-
-\rSec2[ranges.elementsof.access]{ranges::elements_of Access}
 
 \begin{itemdecl}
 constexpr R&& range() noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
-\returns \tcode{std::forward<R>(range_)}.
+\returns
+\tcode{std::forward<R>(range_)}.
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -998,35 +1010,31 @@ constexpr Allocator get_allocator() const noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
-\returns \tcode{allocator_}.
+\returns
+\tcode{allocator_}.
 \end{itemdescr}
-
-\pagebreak
 
 \rSec2[generator.syn]{Header \tcode{<generator>} synopsis}
 
+FIXME: Where in the working draft does this go?
 
 \begin{codeblock}
-
 #include <coroutine>
 #include <ranges>
 
 namespace std {
-    template<class Ref, class Value = remove_cvref_t<Ref>, class Allocator = void>
-        requires common_reference_with<Ref&&, Value&>@\footnote{FIXME: this is insufficient to guarantee that \tcode{iterator} is \tcode{indirectly_readable}.}@
+    template<class Value, class Reference = const Value&, class Allocator = void>
     class generator;
 
-    template<class Ref, class Value, class Allocator>
-    inline constexpr bool ranges::enable_view<generator<Ref, Value, Allocator>> = true;
+    template<class Value, class Reference, class Allocator>
+    inline constexpr bool ranges::enable_view<generator<Value, Reference, Allocator>> = true;
 }
-
 \end{codeblock}
 
 
 \rSec2[coroutine.generator]{Generator View}
 
 \rSec3[coroutine.generator.overview]{Overview}
-
 
 \tcode{generator} generates a sequence of elements by repeatedly resuming the coroutine it was returned from.
 When the coroutine is resumed, it is executed until it reaches either a \tcode{co_yield} expression or the end of the coroutine.
@@ -1081,7 +1089,6 @@ namespace std {
         explicit generator(coroutine_handle<promise_type> coroutine) noexcept; // \expos
 
         coroutine_handle<promise_type> coroutine_ = nullptr; // \expos
-        bool started_ = false; // \expos
     };
 }
 \end{codeblock}
@@ -1099,15 +1106,12 @@ generator(coroutine_handle<promise_type> coro) noexcept;
 Initializes \tcode{coroutine_} with \tcode{coro}.
 \end{itemdescr}
 
-
-
 \begin{itemdecl}
 generator(generator&& other) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
-Initializes \tcode{coroutine_} with \tcode{exchange(other.coroutine_, \{\})}, \\
-and \tcode{started_} with \tcode{exchange(other.started_, false)}.
+Initializes \tcode{coroutine_} with \tcode{exchange(other.coroutine_, \{\})}.
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1115,13 +1119,13 @@ and \tcode{started_} with \tcode{exchange(other.started_, false)}.
 \end{itemdecl}
 
 \begin{itemdescr}
-    \effects Equivalent to:
-    \begin{codeblock}
-    if (started_ && !coroutine_.done()) {
-        coroutine_.promise().destruct_value_();
+\effects
+Equivalent to:
+\begin{codeblock}
+    if (coroutine_) {
+        coroutine_.destroy();
     }
-    coroutine_.destroy();
-    \end{codeblock}
+\end{codeblock}
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1129,51 +1133,42 @@ generator& operator=(generator&& other) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
-\effects Equivalent to:
-\begin{codeblock}
-    swap(coro_, other.coro_);
-    swap(started_, other.started_);
-\end{codeblock}
+\effects
+Equivalent to:
+\tcode{coro_ = exchange(other.coro_, \{\})}.
 
 \returns
 \tcode{*this}.
 \end{itemdescr}
 
-
-
 \begin{itemdecl}
 iterator begin();
 \end{itemdecl}
 
-
 \begin{itemdescr}
 \preconditions
-\begin{itemize}
-\item \tcode{coroutine_} refers to a coroutine
-suspended at its initial suspend-point,
-\item \tcode{started_} is false.
-\end{itemize}
+\tcode{coroutine_} refers to a coroutine suspended at its initial suspend-point.
 
 \effects
 Equivalent to:
 \begin{codeblock}
-    started_ = true;
     coroutine_.resume();
     return iterator(coroutine_);
 \end{codeblock}
 
 \begin{note}
-    It is undefined behavior to call \tcode{begin} multiple times on the same coroutine.
+    A program that calls \tcode{begin}
+    more than once on the same coroutine
+    has undefined behavior.
 \end{note}
 \end{itemdescr}
-
 
 \begin{itemdecl}
 default_sentinel_t end() const noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
-\returns \tcode{\{\}}.
+\returns \tcode{default_sentinel}.
 \end{itemdescr}
 
 
