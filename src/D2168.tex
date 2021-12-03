@@ -62,7 +62,7 @@ that models \tcode{std::ranges::input_range}.
 \item Introduce \tcode{elements_of} to avoid ambiguities when a generator is convertible to the reference type of the parent generator.
 \item Add allocator support
 \item Symmetric transfer works with generators of different value / allocator types
-\item Remove \tcode{iterator::operator->}
+\item Remove \tcode{@\exposid{iterator}@::operator->}
 \item Put \tcode{generator} in a new \tcode{<generator>} header.
 \item Add an other example to motivate the \tcode{Value} template parameter
 \end{itemize}
@@ -123,15 +123,15 @@ Multiple options are available as to where to put the \tcode{generator} class.
 
 \tcode{generator} has 3 template parameters:
 
-\tcode{generator<Value, Reference = const Value\&, Allocator = void>}
+\tcode{generator<T, Reference = const T\&, Allocator = void>}
 
 \begin{itemize}
-\item a \tcode{Value} type,
+\item a type \tcode{T},
   a \cv-unqualified object type that specifies the value type
   of the \tcode{generator}'s range and iterators,
-\item a \tcode{Reference} type that specifies the reference type
+\item a type \tcode{Reference} that specifies the reference type
   of the \tcode{generator}'s range and iterators, and
-\item an \tcode{Allocator} type that is rebound to allocate the coroutine state,
+\item a type \tcode{Allocator} type that is rebound to allocate the coroutine state,
   which can be \tcode{void} to type-erase
   any allocator specified as a coroutine argument,
   defaulting to \tcode{allocator<byte>} when none is specified.
@@ -377,7 +377,7 @@ allows the reference type to be defaulted to a function of the value type,
 and that we could choose that function so as to avoid the pitfall that an inadvertent choice of a non-reference reference type
 can introduce additonal copies.
 
-In R5, \tcode{generator}'s first parameter \tcode{Value} names
+In R5, \tcode{generator}'s first parameter \tcode{T} names
 the value type of the range and iterators,
 and the second parameter \tcode{Reference} names
 the reference type of the range and iterators.
@@ -891,10 +891,35 @@ That being said, we observe:
 
 The code for these benchmarks, as well as more detailed results, can be found on \href{https://github.com/cor3ntin/coro_benchmark}{Github}.
 
+\newenvironment{draftnote}
+    {\color{blue} Drafting Note:}
+    {}
 
+\newpage
 \section{Wording}
 
-Drafting Note: Wording is relative to Working Draft N4901 \cite{N4901}. Add the declaration of \tcode{ranges::elements_of} to the \tcode{<ranges>} synopsis:
+\begin{draftnote}
+Wording is relative to Working Draft N4901 \cite{N4901}. \\
+Modify [ranges.general] as follows:
+\end{draftnote}
+
+\rSec2[ranges.general]{General}
+This Clause describes components for dealing with ranges of elements.
+
+The following subclauses describe range and view requirements, and
+components for range primitives \added{and range generators}
+as summarized in Table [tab:range.summary].
+
+\begin{draftnote}
+Add a new row at the end of [tab:range.summary] ``Range generators''
+with header \tcode{<generator>} referring to
+the new subclause [coroutine.generator] added below.
+\end{draftnote}
+
+\begin{draftnote}
+Add the declaration of \tcode{ranges::elements_of}
+to the \tcode{<ranges>} synopsis:
+\end{draftnote}
 
 \rSec2[ranges.syn]{Header \tcode{<ranges>} synopsis}
 
@@ -924,7 +949,9 @@ namespace std::ranges {
 }
 \end{codeblock}
 
-Drafting Note: insert the following new subclause immediately after [range.dangling]:
+\begin{draftnote}
+Insert the following new subclause immediately after [range.dangling]:
+\end{draftnote}
 
 \begin{addedblock}
 
@@ -1013,39 +1040,28 @@ constexpr Allocator get_allocator() const noexcept;
 \returns
 \tcode{allocator_}.
 \end{itemdescr}
+\end{addedblock}
 
-\rSec2[generator.syn]{Header \tcode{<generator>} synopsis}
+Drafting Note: Add the following subclause to the end of [ranges]:
 
-FIXME: Where in the working draft does this go?
-
-\begin{codeblock}
-#include <coroutine>
-#include <ranges>
-
-namespace std {
-    template<class Value, class Reference = const Value&, class Allocator = void>
-    class generator;
-
-    template<class Value, class Reference, class Allocator>
-    inline constexpr bool ranges::enable_view<generator<Value, Reference, Allocator>> = true;
-}
-\end{codeblock}
-
-
-\rSec2[coroutine.generator]{Generator View}
+\begin{addedblock}
+\rSec2[coroutine.generator]{Range Generators}
 
 \rSec3[coroutine.generator.overview]{Overview}
+\tcode{generator} presents a view of the elements yielded
+by the evaluation of a coroutine.
 
-\tcode{generator} generates a sequence of elements by repeatedly resuming the coroutine it was returned from.
-When the coroutine is resumed, it is executed until it reaches either a \tcode{co_yield} expression or the end of the coroutine.
-
-Elements of the sequence are produced by the coroutine each time a \tcode{co_yield} expression is evaluated.
-
-When the \tcode{co_yield} expression is of the form \tcode{co_yield elements_of(rng)}, each element of the range \tcode{rng} is successively produced
+A \tcode{generator} generates a sequence of elements by
+repeatedly resuming the coroutine it was returned from.
+When the coroutine is resumed, it is executed until it reaches
+either a \tcode{co_yield} statement or the end of the coroutine.
+Elements of the sequence are produced by the coroutine
+each time a \tcode{co_yield} statement is evaluated.
+When the \tcode{co_yield} statement is of the form
+\tcode{co_yield elements_of(rng)},
+each element of the range \tcode{rng}
+is successively produced
 as an element of the generator.
-
-Specializations of \tcode{generator} model \tcode{view} and \tcode{input_range}.
-
 
 \begin{example}
     \begin{codeblock}
@@ -1061,15 +1077,30 @@ Specializations of \tcode{generator} model \tcode{view} and \tcode{input_range}.
     \end{codeblock}
 \end{example}
 
+\rSec3[generator.syn]{Header \tcode{<generator>} synopsis}
+
+\begin{codeblock}
+#include <coroutine>
+#include <ranges>
+
+namespace std {
+    // [coroutine.generator.class], class template \tcode{generator}
+    template<class T, class Reference = const T&, class Allocator = void>
+    class generator;
+
+    template<class T, class Reference, class Allocator>
+    inline constexpr bool ranges::enable_view<generator<T, Reference, Allocator>> = true;
+}
+\end{codeblock}
 
 \rSec3[coroutine.generator.class]{Class template \tcode{generator}}
 
 \begin{codeblock}
 namespace std {
-    template<class Ref, Value = remove_cvref_t<Ref>, class Allocator = void>
-        requires common_reference_with<Ref&&, Value&>
+    template<class T, class Reference = const T&, class Allocator = void>
+        requires common_reference_with<Reference&&, T&>
     class generator {
-        class iterator; // \expos
+        class @\exposid{iterator}@; // \expos
 
     public:
         class promise_type;
@@ -1082,7 +1113,7 @@ namespace std {
         generator& operator=(const generator&) = delete;
         generator& operator=(generator&& other) noexcept;
 
-        iterator begin();
+        @\exposid{iterator}@ begin();
         default_sentinel_t end() const noexcept;
 
     private:
@@ -1094,9 +1125,11 @@ namespace std {
 \end{codeblock}
 
 \begin{itemize}
-\item \tcode{coroutine_traits<generator<Ref, Value, Allocator>>::promise_type} is valid and denotes a type,
+\item \tcode{coroutine_traits<generator<Reference, T, Allocator>>::promise_type} is valid and denotes a type,
 \item \tcode{Allocator} either meets the \tcode{Cpp17Allocator} requirements or is \tcode{void}.
 \end{itemize}
+
+Specializations of \tcode{generator} model \tcode{view} and \tcode{input_range}.
 
 \begin{itemdecl}
 generator(coroutine_handle<promise_type> coro) noexcept;
@@ -1142,7 +1175,7 @@ Equivalent to:
 \end{itemdescr}
 
 \begin{itemdecl}
-iterator begin();
+@\exposid{iterator}@ begin();
 \end{itemdecl}
 
 \begin{itemdescr}
@@ -1153,7 +1186,7 @@ iterator begin();
 Equivalent to:
 \begin{codeblock}
     coroutine_.resume();
-    return iterator(coroutine_);
+    return @\exposid{iterator}@(coroutine_);
 \end{codeblock}
 
 \begin{note}
@@ -1176,22 +1209,22 @@ default_sentinel_t end() const noexcept;
 
 \begin{codeblock}
 
-template<class Ref, class Value, class Allocator>
-    requires common_reference_with<Ref&&, Value&>
-class generator<Ref, Value, Allocator>::promise_type {
+template<class Reference, class T, class Allocator>
+    requires common_reference_with<Reference&&, T&>
+class generator<Reference, T, Allocator>::promise_type {
 
     friend generator;
 
-    // \textbf{This doesn't work if Ref is a reference type}
+    // \textbf{This doesn't work if Reference is a reference type}
     // \textbf{we either need some kind of wrapper (see manual_lifetime in our \\   implementation, or only store a pointer in all cases)}
 
     union {
-        Ref value_; // \expos
+        Reference value_; // \expos
     };
 
     void destruct_value_() { // \expos
-        if constexpr(!is_lvalue_reference_v<Ref>) {
-            value_.~decay_t<Ref>();
+        if constexpr(!is_lvalue_reference_v<Reference>) {
+            value_.~decay_t<Reference>();
     }
 
 public:
@@ -1201,16 +1234,16 @@ public:
 
     auto final_suspend() noexcept; // FIXME: not specified
 
-    @\unspec@ yield_value(const Ref& value) noexcept(is_nothrow_move_constructible_v<Ref>);
+    @\unspec@ yield_value(const Reference& value) noexcept(is_nothrow_move_constructible_v<Reference>);
 
-    template<convertible_to<Ref> T>
-    @\unspec@ yield_value(T&& x) noexcept(is_nothrow_constructible_v<Ref, T>);
+    template<convertible_to<Reference> T>
+    @\unspec@ yield_value(T&& x) noexcept(is_nothrow_constructible_v<Reference, T>);
 
     template<class TVal, class TAlloc>
-    @\unspec@ yield_value(elements_of<generator<Ref, TVal, TAlloc>> g) noexcept; // \seebelownc
+    @\unspec@ yield_value(elements_of<generator<Reference, TVal, TAlloc>> g) noexcept; // \seebelownc
 
     template<ranges::input_range R, class Allocator>
-        requires convertible_to<ranges::range_reference_t<R>, Ref>
+        requires convertible_to<ranges::range_reference_t<R>, Reference>
     @\unspec@ yield_value(elements_of<R, Allocator> rng); // \seebelownc
 
     void await_transform() = delete;
@@ -1256,13 +1289,13 @@ suspend_always initial_suspend() noexcept;
 
 
 \begin{itemdecl}
-@\unspec@ yield_value(const Ref& x)
-    noexcept(is_nothrow_move_constructible_v<Ref>);
+@\unspec@ yield_value(const Reference& x)
+    noexcept(is_nothrow_move_constructible_v<Reference>);
 \end{itemdecl}
 \begin{itemdecl}
-template<convertible_to<Ref> T>
+template<convertible_to<Reference> T>
 @\unspec@ yield_value(T&& x)
-    noexcept(is_nothrow_constructible_v<Ref, T>);
+    noexcept(is_nothrow_constructible_v<Reference, T>);
 \end{itemdecl}
 
 \begin{itemdescr}
@@ -1275,7 +1308,7 @@ Initialises \tcode{value_} with \tcode{std::forward<T>(x)}.
 
 \begin{itemdecl}
 template<class TVal, class TAlloc>
-auto yield_value(elements_of<generator<Ref, TVal, TAlloc>> g) noexcept;
+auto yield_value(elements_of<generator<Reference, TVal, TAlloc>> g) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
@@ -1301,7 +1334,7 @@ which takes ownership of the generator \tcode{g}.
 
 \begin{itemdecl}
 template<ranges::input_range R, class Allocator>
-requires convertible_to<ranges::range_reference_t<R>, Ref>
+requires convertible_to<ranges::range_reference_t<R>, Reference>
 auto yield_value(elements_of<R, Allocator> rng);
 \end{itemdecl}
 
@@ -1311,7 +1344,7 @@ Equivalent to:
 \begin{codeblock}
 {
     return yield_value(ranges::elements_of([](R&& rng, Allocator alloc)
-    -> generator<Ref, Value, Allocator> {
+    -> generator<Reference, T, Allocator> {
         const auto itEnd = ranges::end(rng);
         for (auto it = ranges::begin(rng); it != itEnd ++it) {
             co_yield *it;
@@ -1386,13 +1419,13 @@ static void operator delete(void* pointer, size_t size) noexcept;
 Deallocate the coroutine state with an instance of the allocator equivalent to the one that was used to allocate it.
 \end{itemdescr}
 
-\rSec3[coroutine.generator.iterator]{Class template \tcode{generator::iterator}}
+\rSec3[coroutine.generator.iterator]{Class template \tcode{generator::@\exposid{iterator}@}}
 
 \begin{codeblock}
 
-template<class Ref, class Value, class Allocator>
-    requires common_reference_with<Ref&&, Value&>
-class generator<Ref, Value, Allocator>::iterator {
+template<class Reference, class T, class Allocator>
+    requires common_reference_with<Reference&&, T&>
+class generator<Reference, T, Allocator>::@\exposid{iterator}@ {
 private:
     coroutine_handle<promise_type> coroutine_; // \expos
 
@@ -1400,28 +1433,28 @@ public:
     using value_type = promise_type::value_type;
     using difference_type = ptrdiff_t;
 
-    iterator(const iterator&) = delete;
-    iterator(iterator&& other) noexcept;
+    @\exposid{iterator}@(const @\exposid{iterator}@&) = delete;
+    @\exposid{iterator}@(@\exposid{iterator}@&& other) noexcept;
 
-    iterator& operator=(const iterator&) = delete;
-    iterator& operator=(iterator&& other) noexcept;
+    @\exposid{iterator}@& operator=(const @\exposid{iterator}@&) = delete;
+    @\exposid{iterator}@& operator=(@\exposid{iterator}@&& other) noexcept;
 
     bool operator==(default_sentinel_t) const noexcept;
 
-    iterator& operator++();
+    @\exposid{iterator}@& operator++();
     void operator++(int);
 
     reference operator*() const noexcept(is_nothrow_copy_constructible_v<reference>);
 
 private:
     friend class generator;
-    explicit iterator(coroutine_handle<promise_type> coroutine) noexcept; // \expos
+    explicit @\exposid{iterator}@(coroutine_handle<promise_type> coroutine) noexcept; // \expos
 };
 
 \end{codeblock}
 
 \begin{itemdecl}
- iterator(iterator&& other) noexcept;
+ @\exposid{iterator}@(@\exposid{iterator}@&& other) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
@@ -1431,7 +1464,7 @@ Initializes \tcode{coroutine_} with \tcode{exchange(other.coroutine_, \{\})}.
 
 
 \begin{itemdecl}
-iterator& operator=(iterator&& other) noexcept;
+@\exposid{iterator}@& operator=(@\exposid{iterator}@&& other) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
@@ -1440,7 +1473,7 @@ Equivalent to: \tcode{coroutine_ = exchange(other.coroutine_, \{\});}
 \end{itemdescr}
 
 \begin{itemdecl}
-explicit iterator(coroutine_handle<promise_type> coroutine) noexcept;
+explicit @\exposid{iterator}@(coroutine_handle<promise_type> coroutine) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
@@ -1458,7 +1491,7 @@ bool operator==(default_sentinel_t) const noexcept
 \end{itemdescr}
 
 \begin{itemdecl}
-iterator& operator++();
+@\exposid{iterator}@& operator++();
 \end{itemdecl}
 
 \begin{itemdescr}
@@ -1512,7 +1545,7 @@ Insert into [version.syn]
 \end{codeblock}
 \end{addedblock}
 
-
+\newpage
 \section{References}
 \renewcommand{\section}[2]{}%
 \bibliographystyle{plain}

@@ -404,6 +404,7 @@
 \newcommand{\placeholder}[1]{\textit{#1}}
 \newcommand{\placeholdernc}[1]{\textit{#1\nocorr}}
 \newcommand{\exposid}[1]{\tcode{\placeholder{#1}}}
+\newcommand{\exposidnc}[1]{\tcode{\placeholdernc{#1}}\itcorr[-1]}
 \newcommand{\ecname}[1]{\tcode{\placeholder{#1}}}
 
 \newcommand{\cname}[1]{\tcode{#1}}
