@@ -700,7 +700,7 @@ on the allocator type. Details for this interface are found in \paper{P1681R0}.
     }
 
     my_allocator<std::byte> alloc;
-    input_range auto rng = allocator_example<my_allocator<std::byte>>(std::allocator_arg, alloc);
+    input_range auto rng = allocator_example(std::allocator_arg, alloc);
 \end{colorblock}
 
 The proposed interface requires that, if an allocator is provided, it is the second argument to the coroutine function,
@@ -752,7 +752,8 @@ std::generator<int, const int&, std::stateless_allocator<int>> f() {}
 f();
 \end{colorblock}
 
-Returns a generator of type \tcode{std::generator<int, const int\&, std::stateless_allocator<int>>}
+Returns a generator of type
+\tcode{std::generator<int, const int\&, std::stateless_allocator<\brk{}int>>}
 No extra storage is used for the allocator because it is stateless.
 
 \textbf{Explicit stateful allocator}
@@ -763,7 +764,7 @@ std::generator<int, const int\&, some_stateful_allocator<int>>
 f(std::allocator_arg, some_allocator); // must be convertible to some_stateful_allocator
 \end{colorblock}
 
-Returns a generator of type \tcode{std::generator<int, const int\&, some_stateful_allocator<int>>}
+Returns a generator of type \tcode{std::generator<int, const int\&, some_stateful_allocator<\brk{}int>>}
 The allocator is copied in the coroutine state.
 
 \subsection{Can we postpone adding support for allocator later?}
@@ -1010,7 +1011,7 @@ constexpr explicit elements_of(R&& r, Allocator allocator) noexcept;
 \begin{itemdescr}
 \effects
 Initializes \tcode{allocator_} with \tcode{std::move(allocator)} and
-\tcode{range_} with \tcode{std::forward<R>(r)}.
+\tcode{range_} with \tcode{std::forward<R>(\brk{}r)}.
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1407,7 +1408,7 @@ provide sufficient storage for:
 \begin{itemize}
 \item a coroutine state of size \tcode{size},
 \item if \tcode{allocator_traits<BAlloc>::is_always_equal::value} is \tcode{false}
-or \tcode{default_initializable<BAlloc>} is \tcode{false},
+or \tcode{default_initial\-izable<BAlloc>} is \tcode{false},
 space to store a copy of the allocator, and
 \item if \tcode{Allocator} denotes \tcode{void},
 any additional state necessary to ensure that
