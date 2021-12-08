@@ -29,34 +29,36 @@ that models \tcode{std::ranges::input_range}.
 
 \section{Revisions}
 
-\subsection{R5}
+\subsection{PXXXXR0}
 \begin{itemize}
 \item Reorder \tcode{generator}'s first two template parameters,
   so the value type precedes the reference type.
-  This allows the reference type to be more easily defaulted,
-  which feels more consistent with the R4 design.
+  This allows the reference type to be more easily defaulted to a reference,
+  which is both consistent with the P2168R4 design and allows
+  users to override when they want to pay the cost of repeated copies.
+
 \item Remove concerns about the $\bigoh{1}$ destruction requirement for \tcode{view},
   which has been relaxed by P2415R2 ``What is a view?'' \cite{P2415R2}.
 \end{itemize}
 
-\subsection{R4}
+\subsection{P2168R4}
 \begin{itemize}
 \item Wording improvements
 \end{itemize}
 
-\subsection{R3}
+\subsection{P2168R3}
 \begin{itemize}
 \item Wording improvements
 \end{itemize}
 
-\subsection{R2}
+\subsection{P2168R2}
 \begin{itemize}
 \item Some wording fixes
 \item Improve the section on allocator support
 \item Updated implementation
 \end{itemize}
 
-\subsection{R1}
+\subsection{P2168R1}
 \begin{itemize}
 \item Add benchmarks results and discussion about performance
 \item Introduce \tcode{elements_of} to avoid ambiguities when a generator is convertible to the reference type of the parent generator.
@@ -149,12 +151,12 @@ This first parameter, therefore, does a lot of heavy lifting.
 \subsection{Obsolete discussion about reference specification}
 
 \begin{note}
-Before R5, \tcode{generator}'s first parameter
+Before PXXXXR0, \tcode{generator}'s first parameter
 \tcode{Type} denoted the reference type of the range / iterators, and
 the value type was defaulted to \tcode{remove_cvref_t<Type>}.
 The following sections of design discussion are written
 in terms of that ordering for continuity.
-The ``R5 adjustment'' section will describe our rationale
+The ``Parameter adjustment'' section describes our rationale
 for reordering the first two parameters and
 how the result relates to the older design discussed here.
 \end{note}
@@ -351,7 +353,7 @@ However, no other view does that, "reference-like" is fuzzily defined, and this 
 
 We rejected this option.
 
-\subsubsection{Keeping the R4 design}
+\subsubsection{Keeping the P2168R4 design}
 
 Returning values has the potential to severely impact performance, is inconsistent with other views, and is not necessary.
 It also did not work with move-only types.
@@ -363,9 +365,9 @@ We think this new approach keeps the simplicity of the original design, improves
 
 Thank you LEWG, and in particular Mathias, for highlighting these concerns!
 
-\subsection{R5 adjustment}
+\subsection{Parameter adjustment}
 
-It is unfortunate that the R4 design silently alters
+It is unfortunate that the P2168R4 design silently alters
 the user's specified reference type,
 and that in doing so it effectively forbids non-reference reference types.
 Ranges with proxy reference types especially would like
@@ -374,10 +376,11 @@ it would be preferable to avoid a design that makes it impossible to do so.
 
 We observed that reordering the reference and value type parameters
 allows the reference type to be defaulted to a function of the value type,
-and that we could choose that function so as to avoid the pitfall that an inadvertent choice of a non-reference reference type
+and that we could choose that function so as to avoid the pitfall that
+an inadvertent choice of a non-reference reference type
 can introduce additonal copies.
 
-In R5, \tcode{generator}'s first parameter \tcode{T} names
+In PXXXXR0, \tcode{generator}'s first parameter \tcode{T} names
 the value type of the range and iterators,
 and the second parameter \tcode{Reference} names
 the reference type of the range and iterators.
@@ -387,14 +390,17 @@ or a copy-constructible \cv-unqualified object type -
 so \tcode{*i} is a prvalue.
 We preserve the prior design's feature that yielded values must convert to
 \tcode{conditional_t<is_reference_v<Reference>, Reference, const Reference\&>}
-which allows implementations to either store a pointer to the converted glvalue in the coroutine promise or stash a the value in an awaitable returned from \tcode{yield_value}.
+which allows implementations to either store
+a pointer to the converted glvalue in the coroutine promise or
+stash a the value in an awaitable returned from \tcode{yield_value}.
 
-This approach keeps the desirable features of the R4 design,
+This approach keeps the desirable features of the P2168R4 design,
 making simple things simple,
 but also makes complex things possible.
 Presumably a user who goes to the trouble of explicitly specifying
 the reference type can be trusted to determine if their program can tolerate
-the expense of copy-constructing a new prvalue to yield from each iterator dereference.
+the expense of copy-constructing a new prvalue
+to yield from each iterator dereference.
 
 \subsection{Separately specifyable Value Type}
 
@@ -452,57 +458,32 @@ auto v = std::ranges::to<vector>(strings()); // (@{\paper{P1206R3}}@)
 
 There are multiple implementation strategies possible to store the value in the generator.
 An early revision of this paper always stored a copy of the yielded value, leading to an extra copy.
-When a copy needs to be made by \tcode{yield_value} (because the yielded value is not of the same type or cannot bind to the reference type), we can store the value in an awaiter that will remain alive until the end of the co_yield expression:
+Later revisions supported storing the yielded value in an awaitable object
+returned from the promise's \tcode{yield_value} function.
 
-\begin{colorblock}
-    std::suspend_always yield_value(const Ref& x) {
-        auto& root = rootOrLeaf_.promise();
-        root.valuePtr_ = std::addressof(x);
-        return {};
-    }
-
-    std::suspend_always yield_value(Ref& x) {
-        auto& root = rootOrLeaf_.promise();
-        root.valuePtr_ = std::addressof(x);
-        return {};
-    }
-
-    template<typename T = std::remove_cvref_t<Ref>>
-        requires (!is_reference_v<Ref> && is_constructible_v<Ref, T>)
-    auto yield_value(T&& x) {
-        struct yield_value_holder {
-            Ref ref;
-
-            bool await_ready() noexcept { return false; }
-
-            template<typename Promise>
-            void await_suspend(coroutine_handle<Promise> h) noexcept {
-                h.promise().valuePtr_ = addressof(ref);
-            }
-            void await_resume() noexcept {}
-        };
-        return yield_value_holder{forward<T>(x)};
-    }
-\end{colorblock}
-
-% FIXME: Is this still true?
-To support this implementation strategy, the wording does not specify a type for the return value of \tcode{yield_value}.
-
-However, the yielded expression is guaranteed to be alive
-until the coroutine resumes.
-It is, therefore, sufficient to store its address.
-We can take advantage of that fact by storing only a pointer in the generator.
+However, the object denoted by a glvalue yield expression is guaranteed
+to live until the coroutine resumes.
+We can take advantage of that fact by storing only a pointer to in the promise,
+if the result of dereferencing that pointer is convertible to the generator's
+reference type. We guarantee this is the case by providing a \tcode{yield_value}
+whose parameter type is
+\tcode{conditional_t<is_reference_v<Reference>, Reference, const Reference\&>}.
+This forces any conversions to happen inside the coroutine itself,
+yielding a temporary glvalue that can later be dereferenced
+to an lvalue which is trivially \tcode{static_cast}ed to \tcode{Reference}
+in the iterator's \tcode{operator*}.
 
 A drawback of this solution is that the yielded value is only destroyed at the end of the
-full expression:
+full expression in which \tcode{co_yield} appears, so given
 \begin{colorblock}
     (co_yield x, co_yield y); // x is destroyed after y is yielded.
 \end{colorblock}
+We think this is a reasonable tradeoff given that this approach minimizes the
+number of copies must be made of the yielded value.
+We force the coroutine to materialize the element to be yielded,
+but after doing so can cleanly pass a reference to that element through
+the coroutine and iterator machinery and directly to consuming code.
 
-We think this is a reasonable tradeoff as
-it avoids the copy needed on the older approach.
-Further optimization could be done to copy small values - and avoid an indirection.
-But it is unclear what the cost of this indirection is, as none of these accesses should result in cache misses).
 
 \subsection{Recursive generator}
 
@@ -550,8 +531,7 @@ directly resume the current leaf generator when incrementing the iterator, where
 requires O(depth) coroutine resumptions/suspensions per element of the sequence.
 
 Example: Non-recursive form incurs O(depth) resumptions/suspensions per element
-and is more cumbersome to write
-
+and is more cumbersome to write:
 \begin{colorblock}
     using namespace std;
 
@@ -570,8 +550,10 @@ and is more cumbersome to write
 
 Exceptions that propagate out of the body of nested \tcode{generator} coroutines
 are rethrown into the parent coroutine from the \tcode{co_yield} expression rather
-than propagating out of the top-level \tcode{iterator::operator++()}. This follows the mental model that \tcode{co_yield someGenerator} is semantically equivalent to manually
-iterating over the elements and yielding each element.
+than propagating out of the top-level \tcode{iterator::operator++()}.
+This follows the mental model that
+\tcode{co_yield someGenerator} is semantically equivalent to
+manually iterating over the elements and yielding each element.
 
 For example: \tcode{nested_ints()} is semantically equivalent to \tcode{manual_ints()}
 \begin{colorblock}
@@ -627,12 +609,10 @@ of the present generator
 \end{colorblock}
 
 To avoid this issue, we propose that:
-
 \begin{itemize}
-    \item \tcode{co_yield <expression>} always yield the value directly.
-    \item \tcode{co_yield elements_of(<expression>)} yield the values of the nested generator.
+    \item \tcode{co_yield <expression>} yields the value directly, and
+    \item \tcode{co_yield elements_of(<expression>)} yields successive elements the nested generator.
 \end{itemize}
-
 
 For convenience, we further propose that \tcode{co_yield elements_of(x)} be extended to support
 yielding the values of arbitrary ranges beyond generators, ie
@@ -652,7 +632,10 @@ The recursive form can be implemented efficiently with symmetric transfer.
 Earlier works in \cite{CppCoro} implemented this feature in a distinct \tcode{recursive_generator} type.
 
 However, it appears that a single type is reasonably efficient thanks to HALO optimizations and symmetric transfer.
-The memory cost of that feature is three extra pointers per generator.
+The memory cost of that feature is two extra pointers per generator\footnote{
+The two pointers in our implementation have non-overlapping active times;
+we believe the pair can be optimized into a single pointer's space
+with some bit hacking to store a discriminator in the unused lower bits.}.
 It is difficult to evaluate the runtime cost of our design given the current coroutine support in compilers.
 However our tests show no noticeable difference between a \tcode{generator} and a \tcode{recursive_generator}
 which is called non-recursively. It is worth noting that the proposed design makes sure that HALO \cite{P0981R0} optimizations are possible.
@@ -783,41 +766,6 @@ f(std::allocator_arg, some_allocator); // must be convertible to some_stateful_a
 Returns a generator of type \tcode{std::generator<int, const int\&, some_stateful_allocator<int>>}
 The allocator is copied in the coroutine state.
 
-
-\subsection{Interaction with symmetric transfer and allocator support}
-
-The allocator must necessarily be part of a coroutine's promise type
-since implementations query the promise for allocation functions.
-
-Our implementation uses a base class to implement the non-allocation behaviors
-for \tcode{generator}'s promise so that generators with different allocator types
-can yield each other.
-
-This leaves with two implementation strategies
-\begin{itemize}
-\item Storing a pointer to the base class in the promise handle
-\item Leave implementers find the best implementation strategy and can bell their own implementation to be well-formed
-\item Modify the wording as follow to allow \tcode{coroutine_handle<promise_base>::from_address(coro.address());} to be well-formed:
-\end{itemize}
-
-To support yielding nested generators with different allocator types we then have several options:
-\begin{itemize}
-\item Leaving implementers find the best strategy with compiler magic
-\item Modify \tcode{coroutine_handle<T>::from_address}:
-\end{itemize}
-\begin{quote}
-\indexlibrarymember{from_address}{coroutine_handle}%
-\begin{itemdecl}
-static constexpr coroutine_handle<Promise> coroutine_handle<Promise>::from_address(void* addr);
-\end{itemdecl}
-
-\begin{itemdescr}
-\expects
-\tcode{addr} was obtained via a prior call to \tcode{address}
-on an object of type \cv \changed{\tcode{coroutine_handle<Promise>}}{of type \cv \tcode{coroutine_­handle<T}> where\tcode{T} is any type such that \tcode{is_layout_compatible_v<T, Promise>} is \tcode{true}}.
-\end{itemdescr}
-\end{quote}
-
 \subsection{Can we postpone adding support for allocator later?}
 
 A case can be made that allocator support could be added to \tcode{std::generator} later.
@@ -826,6 +774,49 @@ adding allocator after \tcode{std::generator} ships would represent an ABI break
 We recommend that we add allocator support as proposed in this paper now and make sure that the design remains consistent as work on \tcode{std::lazy}
 is made in this cycle.
 However, it would be possible to extend support for different mechanisms (such as presented in section 3 of \paper{P1681R0} later.
+
+
+\subsection{Interaction of symmetric transfer and allocator support}
+
+The allocator must necessarily be part of a coroutine's promise type
+since implementations query the promise for allocation functions.
+Nonetheless, it would seem silly for a generator to be unable to nest another
+generator with identical element type but differing allocator.
+For that matter, even differing value types shouldn't be problematic:
+the only interface between the generator and the coroutine it wraps
+that differs depending on the type arguments to \tcode{generator}
+is \tcode{yield_value}.
+Ideally, generators would be able to recurse into other generators
+whose \tcode{yield_value} has the same parameter type
+even if all three template arguments to \tcode{generator} differ.
+
+Our implementation uses a base class to implement the non-allocation behaviors
+for \tcode{generator}'s promise so that generators with different allocator types
+can yield each other.
+Doing so, however, requires that we partially erase
+the type of a \tcode{coroutine_handle} so we can resume it later
+knowing only that its promise type derives from a particular base.
+
+There are at least two ways to implement this partial type erasure:
+\begin{itemize}
+\item Storing a pointer in the common base to
+  a component with full type knowledge, which can then
+  resume the targeted coroutine,
+\item Relax the preconditions on some of the \tcode{coroutine_handle} functions
+  to allow conversion from
+  \tcode{coroutine_handle<void>} to \tcode{coroutine_handle<T>} when
+  the source's corresponding \tcode{address()} value was obtained from
+  a \tcode{coroutine_handle} referring to a coroutine whose promise object
+  is pointer-interconvertible with an object of type \tcode{T}.
+\end{itemize}
+
+Our current plan is to standardize
+the intent to allow yielding nested generators
+with different allocator and value types,
+leaving the details of the implementation unspecified,
+and to later separately propose the changes to \tcode{coroutine_handle}
+that enable that implementation to be maximally efficient.
+
 
 \section{Implementation and experience}
 
@@ -1098,7 +1089,6 @@ namespace std {
 \begin{codeblock}
 namespace std {
     template<class T, class Reference = const T&, class Allocator = void>
-        requires common_reference_with<Reference&&, T&>
     class generator {
         class @\exposid{iterator}@; // \expos
 
@@ -1124,15 +1114,41 @@ namespace std {
 }
 \end{codeblock}
 
+\mandates \tcode{T} is a cv-unqualified object type.
+
+\mandates \tcode{Reference} is either a reference type, or
+  a cv-unqualified object type that models \libconcept{copy_constructible}.
+
+\tcode{Allocator} shall either meet the \tcode{Cpp17Allocator} requirements,
+  or be \tcode{void}.
+
+\mandates
+Let \tcode{RRef} denote \tcode{remove_reference_t<Reference>\&\&}
+if \tcode{Reference} is a reference type,
+or \tcode{Reference} otherwise.
+Each of:
 \begin{itemize}
-\item \tcode{coroutine_traits<generator<Reference, T, Allocator>>::promise_type} is valid and denotes a type,
-\item \tcode{Allocator} either meets the \tcode{Cpp17Allocator} requirements or is \tcode{void}.
+\item \tcode{common_reference_with<Reference\&\&, T\&>},
+\item \tcode{common_reference_with<Reference\&\&, RRef\&\&>}, and
+\item \tcode{common_reference_with<RRef\&\&, const T\&>}
 \end{itemize}
+is modeled.
+\begin{note}
+These requirements ensure the exposition-only \exposid{iterator} type
+can model \tcode{indirectly_readable} and thus \tcode{input_iterator}.
+\end{note}
 
 Specializations of \tcode{generator} model \tcode{view} and \tcode{input_range}.
 
+The behavior of a program
+that defines a partial or
+explicit specialization of \tcode{generator}
+is undefined.
+
+\rSec3[generator.members]{Members}
+
 \begin{itemdecl}
-generator(coroutine_handle<promise_type> coro) noexcept;
+explicit generator(coroutine_handle<promise_type> coro) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
@@ -1179,7 +1195,7 @@ Equivalent to:
 \end{itemdecl}
 
 \begin{itemdescr}
-\preconditions
+\expects
 \tcode{coroutine_} refers to a coroutine suspended at its initial suspend-point.
 
 \effects
@@ -1191,7 +1207,7 @@ Equivalent to:
 
 \begin{note}
     A program that calls \tcode{begin}
-    more than once on the same coroutine
+    more than once on the same generator
     has undefined behavior.
 \end{note}
 \end{itemdescr}
@@ -1201,31 +1217,22 @@ default_sentinel_t end() const noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
-\returns \tcode{default_sentinel}.
+\returns
+\tcode{default_sentinel}.
 \end{itemdescr}
 
 
 \rSec3[coroutine.generator.promise]{class \tcode{generator::promise_type}}
 
 \begin{codeblock}
-
-template<class Reference, class T, class Allocator>
-    requires common_reference_with<Reference&&, T&>
-class generator<Reference, T, Allocator>::promise_type {
-
+template<class T, class Reference, class Allocator>
+class generator<T, Reference, Allocator>::promise_type {
     friend generator;
 
-    // \textbf{This doesn't work if Reference is a reference type}
-    // \textbf{we either need some kind of wrapper (see manual_lifetime in our \\   implementation, or only store a pointer in all cases)}
+    using @\exposid{yielded}@ = // \expos
+        conditional_t<is_reference_v<Reference>, Reference, const Reference&>;
 
-    union {
-        Reference value_; // \expos
-    };
-
-    void destruct_value_() { // \expos
-        if constexpr(!is_lvalue_reference_v<Reference>) {
-            value_.~decay_t<Reference>();
-    }
+    add_pointer_t<yielded> @\exposid{value_}@ = nullptr; // \expos
 
 public:
     generator get_return_object() noexcept;
@@ -1234,17 +1241,15 @@ public:
 
     auto final_suspend() noexcept; // FIXME: not specified
 
-    @\unspec@ yield_value(const Reference& value) noexcept(is_nothrow_move_constructible_v<Reference>);
+    suspend_always yield_value(yielded value) noexcept;
 
-    template<convertible_to<Reference> T>
-    @\unspec@ yield_value(T&& x) noexcept(is_nothrow_constructible_v<Reference, T>);
+    template<class T2, class Ref2, class Alloc2>
+        requires same_as<conditional_t<is_reference_v<Ref2>, Ref2, const Ref2&>, yielded>
+    auto yield_value(ranges::elements_of<generator<T2, Reference, Alloc2>> g) noexcept;
 
-    template<class TVal, class TAlloc>
-    @\unspec@ yield_value(elements_of<generator<Reference, TVal, TAlloc>> g) noexcept; // \seebelownc
-
-    template<ranges::input_range R, class Allocator>
-        requires convertible_to<ranges::range_reference_t<R>, Reference>
-    @\unspec@ yield_value(elements_of<R, Allocator> rng); // \seebelownc
+    template<ranges::input_range R, class Alloc2>
+        requires convertible_to<ranges::range_reference_t<R>, yielded>
+    auto yield_value(ranges::elements_of<R, Alloc2> r) noexcept;
 
     void await_transform() = delete;
 
@@ -1252,21 +1257,20 @@ public:
 
     void unhandled_exception();
 
-    static void* operator new(size_t size) requires same_as<Allocator, void>;
-    static void* operator new(size_t size) requires default_initializable<Allocator>;
+    static void* operator new(size_t size)
+        requires same_as<Allocator, void> || default_initializable<Allocator>;
 
     template<class Alloc, class... Args>
-    static void* operator new(size_t size, allocator_arg_t, Alloc& alloc, Args&...);
+        requires same_as<Allocator, void> || convertible_to<Alloc, Allocator>
+    static void* operator new(size_t size, allocator_arg_t, Alloc&& alloc, Args&...);
 
     template<class This, class Alloc, class... Args>
-    static void* operator new(size_t size, This&, allocator_arg_t, Alloc& alloc, Args&...);
+        requires same_as<Allocator, void> || convertible_to<Alloc, Allocator>
+    static void* operator new(size_t size, This&, allocator_arg_t, Alloc&& alloc, Args&...);
 
     static void operator delete(void* pointer, size_t size) noexcept;
 };
 \end{codeblock}
-
-
-
 
 \begin{itemdecl}
 generator get_return_object() noexcept;
@@ -1289,22 +1293,17 @@ suspend_always initial_suspend() noexcept;
 
 
 \begin{itemdecl}
-@\unspec@ yield_value(const Reference& x)
-    noexcept(is_nothrow_move_constructible_v<Reference>);
-\end{itemdecl}
-\begin{itemdecl}
-template<convertible_to<Reference> T>
-@\unspec@ yield_value(T&& x)
-    noexcept(is_nothrow_constructible_v<Reference, T>);
+suspend_always yield_value(yielded x) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
 \effects
-Initialises \tcode{value_} with \tcode{std::forward<T>(x)}.
+Equivalent to:
+\tcode{value_ = addressof(x)}.
 
-\returns An implementation-defined awaitable type\footnote{FIXME: What's an "awaitable type"?}.
+\returns
+\tcode{\{\}}.
 \end{itemdescr}
-
 
 \begin{itemdecl}
 template<class TVal, class TAlloc>
@@ -1312,7 +1311,8 @@ auto yield_value(elements_of<generator<Reference, TVal, TAlloc>> g) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
-\mandates \item \tcode{TAlloc} meets the \tcode{Cpp17Allocator} requirements.
+\expects
+\tcode{TAlloc} meets the \tcode{Cpp17Allocator} requirements.
 
 \effects
 Execution is transferred to the coroutine represented by \tcode{g.coroutine_} until its completion.
@@ -1495,7 +1495,7 @@ bool operator==(default_sentinel_t) const noexcept
 \end{itemdecl}
 
 \begin{itemdescr}
-\precondition \tcode{coroutine_.done()} is \tcode{false}.
+\expects \tcode{coroutine_.done()} is \tcode{false}.
 
 % \effects
 
@@ -1507,7 +1507,7 @@ void operator++(int);
 \end{itemdecl}
 
 \begin{itemdescr}
-\precondition \tcode{coroutine_.done()} is \tcode{false}.
+\expects \tcode{coroutine_.done()} is \tcode{false}.
 
 \effects
 Equivalent to:
@@ -1523,7 +1523,7 @@ reference operator*() const
 \end{itemdecl}
 
 \begin{itemdescr}
-\precondition \tcode{coroutine_.done()} is \tcode{false}.
+\expects \tcode{coroutine_.done()} is \tcode{false}.
 
 \effects
 Equivalent to:
