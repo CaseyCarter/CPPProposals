@@ -10,11 +10,11 @@
 \newcolumntype{?}{!{\vrule width 1pt}}
 
 \title{\tcode{std::generator}: Synchronous Coroutine Generator for Ranges}
-\docnumber{D2168R5}
+\docnumber{D2502R0}
 \audience{LEWG}
 \author{Casey Carter}{Casey@Carter.net}
-\authortwo{Lewis Baker}{lewissbaker@gmail.com}
-\authorthree{Corentin Jabot}{corentin.jabot@gmail.com}
+%% \authortwo{Lewis Baker}{lewissbaker@gmail.com}
+%% \authorthree{Corentin Jabot}{corentin.jabot@gmail.com}
 
 \begin{document}
 \maketitle
@@ -26,6 +26,12 @@ We propose a standard library type \tcode{std::generator}
 which implements a coroutine generator
 that models \tcode{std::ranges::input_range}.
 
+\section{Acknowledgements}
+
+I'd like to thank Lewis Baker and Corentin Jabot,
+whose P2168 \cite{P2168R3} I looted shamelessly for this proposal.
+This paper is presented as a new revision of
+their unpublished D2168R4 for continuity of design.
 
 \section{Revisions}
 
@@ -34,14 +40,14 @@ that models \tcode{std::ranges::input_range}.
 \item Reorder \tcode{generator}'s first two template parameters,
   so the value type precedes the reference type.
   This allows the reference type to be more easily defaulted to a reference,
-  which is both consistent with the P2168R4 design and allows
+  which is both consistent with the D2168R4 design and allows
   users to override when they want to pay the cost of repeated copies.
 
 \item Remove concerns about the $\bigoh{1}$ destruction requirement for \tcode{view},
   which has been relaxed by P2415R2 ``What is a view?'' \cite{P2415R2}.
 \end{itemize}
 
-\subsection{P2168R4}
+\subsection{D2168R4}
 \begin{itemize}
 \item Wording improvements
 \end{itemize}
@@ -353,7 +359,7 @@ However, no other view does that, "reference-like" is fuzzily defined, and this 
 
 We rejected this option.
 
-\subsubsection{Keeping the P2168R4 design}
+\subsubsection{Keeping the D2168R4 design}
 
 Returning values has the potential to severely impact performance, is inconsistent with other views, and is not necessary.
 It also did not work with move-only types.
@@ -367,7 +373,7 @@ Thank you LEWG, and in particular Mathias, for highlighting these concerns!
 
 \subsection{Parameter adjustment}
 
-It is unfortunate that the P2168R4 design silently alters
+It is unfortunate that the D2168R4 design silently alters
 the user's specified reference type,
 and that in doing so it effectively forbids non-reference reference types.
 Ranges with proxy reference types especially would like
@@ -394,7 +400,7 @@ which allows implementations to either store
 a pointer to the converted glvalue in the coroutine promise or
 stash a the value in an awaitable returned from \tcode{yield_value}.
 
-This approach keeps the desirable features of the P2168R4 design,
+This approach keeps the desirable features of the D2168R4 design,
 making simple things simple,
 but also makes complex things possible.
 Presumably a user who goes to the trouble of explicitly specifying
@@ -1643,7 +1649,7 @@ Insert in lexicographical order in [version.syn]
     \bibitem[Implementation]{Implementation}
     Casey Carter, Lewis Baker, Corentin Jabot
     \emph{\tcode{std::generator} implementation}\newline
-    \url{https://godbolt.org/z/7dTfPz9d6}
+    \url{https://godbolt.org/z/Y4qa386Pa}
 
 \end{thebibliography}
 
