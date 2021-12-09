@@ -970,8 +970,8 @@ namespace std::ranges {
   template<range R, class Allocator = allocator<byte>>
   class elements_of {
   private:
-    [[no_unique_address]] Allocator allocator_{}; // \expos
-    R&& range_; // \expos
+    [[no_unique_address]] Allocator @\exposid{allocator_}@{}; // \expos
+    R&& @\exposid{range_}@; // \expos
 
   public:
     constexpr explicit elements_of(R&& r)
@@ -1001,7 +1001,7 @@ constexpr explicit elements_of(R&& r)
 
 \begin{itemdescr}
 \effects
-Initializes \tcode{range_} with \tcode{std::forward<R>(r)}.
+Initializes \tcode{\exposid{range_}} with \tcode{std::forward<R>(r)}.
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1010,8 +1010,8 @@ constexpr explicit elements_of(R&& r, Allocator allocator) noexcept;
 
 \begin{itemdescr}
 \effects
-Initializes \tcode{allocator_} with \tcode{std::move(allocator)} and
-\tcode{range_} with \tcode{std::forward<R>(\brk{}r)}.
+Initializes \tcode{\exposid{allocator_}} with \tcode{std::move(allocator)} and
+\tcode{\exposid{range_}} with \tcode{std::forward<R>(\brk{}r)}.
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1020,7 +1020,7 @@ constexpr R&& range() noexcept;
 
 \begin{itemdescr}
 \returns
-\tcode{std::forward<R>(range_)}.
+\tcode{std::forward<R>(\exposid{range_})}.
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1029,7 +1029,7 @@ constexpr Allocator get_allocator() const noexcept;
 
 \begin{itemdescr}
 \returns
-\tcode{allocator_}.
+\tcode{\exposid{allocator_}}.
 \end{itemdescr}
 \end{addedblock}
 
@@ -1109,7 +1109,7 @@ namespace std {
   private:
     explicit generator(coroutine_handle<promise_type> coroutine) noexcept; // \expos
 
-    coroutine_handle<promise_type> coroutine_ = nullptr; // \expos
+    coroutine_handle<promise_type> @\exposid{coroutine_}@ = nullptr; // \expos
   };
 }
 \end{codeblock}
@@ -1144,6 +1144,13 @@ The behavior of a program that defines
 a partial or explicit specialization of \tcode{generator}
 is undefined.
 
+An instance of \tcode{generator} has
+an associated stack of coroutines,
+which is initially empty.
+A coroutine is associated with
+at most one \tcode{generator} instance
+at a given time.
+
 \rSec3[generator.members]{Members}
 
 \begin{itemdecl}
@@ -1151,7 +1158,7 @@ explicit generator(coroutine_handle<promise_type> coro) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
-Initializes \tcode{coroutine_} with \tcode{coro}.
+Initializes \tcode{\exposid{coroutine_}} with \tcode{coro}.
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1159,7 +1166,7 @@ generator(generator&& other) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
-Initializes \tcode{coroutine_} with \tcode{exchange(other.coroutine_, \{\})}.
+Initializes \tcode{\exposid{coroutine_}} with \tcode{exchange(other.\exposid{coroutine_}, \{\})}.
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1170,8 +1177,8 @@ Initializes \tcode{coroutine_} with \tcode{exchange(other.coroutine_, \{\})}.
 \effects
 Equivalent to:
 \begin{codeblock}
-    if (coroutine_) {
-      coroutine_.destroy();
+    if (@\exposid{coroutine_}@) {
+      @\exposid{coroutine_}@.destroy();
     }
 \end{codeblock}
 \end{itemdescr}
@@ -1183,7 +1190,7 @@ generator& operator=(generator&& other) noexcept;
 \begin{itemdescr}
 \effects
 Equivalent to:
-\tcode{coro_ = exchange(other.coro_, \{\})}.
+\tcode{\exposid{coroutine_} = exchange(other.\exposid{coroutine_}, \{\})}.
 
 \returns
 \tcode{*this}.
@@ -1195,14 +1202,20 @@ Equivalent to:
 
 \begin{itemdescr}
 \expects
-\tcode{coroutine_} refers to a coroutine suspended at its initial suspend-point.
+\tcode{\exposid{coroutine_}} refers to a coroutine
+suspended at its initial suspend-point.
 
 \effects
 Equivalent to:
 \begin{codeblock}
-    coroutine_.resume();
-    return @\exposid{iterator}@(coroutine_);
+    @\exposid{coroutine_}@.resume();
+    return @\exposid{iterator}@(@\exposid{coroutine_}@);
 \end{codeblock}
+
+\remarks
+This function pushes \exposid{coroutine_}
+onto the \tcode{generator}'s empty stack
+of associated coroutines.
 
 \begin{note}
     A program that calls \tcode{begin}
@@ -1238,7 +1251,7 @@ public:
 
   suspend_always initial_suspend() noexcept;
 
-  auto final_suspend() noexcept; // FIXME: not specified
+  auto final_suspend() noexcept;
 
   suspend_always yield_value(@\exposid{yielded}@ value) noexcept;
 
@@ -1289,6 +1302,23 @@ suspend_always initial_suspend() noexcept;
 \end{itemdescr}
 
 \begin{itemdecl}
+auto final_suspend() noexcept;
+\end{itemdecl}
+
+\begin{itemdescr}
+\expects
+The coroutine whose promise object is \tcode{*this} is at the top of the stack
+of associated coroutines of some \tcode{generator} instance \tcode{x}.
+
+\returns
+An awaitable object of unspecified type
+whose member \tcode{await_suspend}
+removes the coroutine whose promise is \tcode{*this}
+from the top of \tcode{x}'s stack of associated coroutines,
+and resumes execution of the new top-of-stack coroutine, if any.
+\end{itemdescr}
+
+\begin{itemdecl}
 suspend_always yield_value(@\exposid{yielded}@ x) noexcept;
 \end{itemdecl}
 
@@ -1308,19 +1338,27 @@ template<class T2, class Ref2, class Alloc2>
 \end{itemdecl}
 
 \begin{itemdescr}
-\effects
-Execution is transferred to the coroutine represented by \tcode{g.coroutine_} until its completion.
-After \tcode{g.coroutine_} completes, the current coroutine is resumed.
-If \tcode{g.coroutine_} completes with an exception, the exception is rethrown from the `co_yield` expression.
-
-Variables with automatic storage duration in the scope of the coroutine represented by \tcode{g.coroutine_} are destroyed
-before variables with automatic storage duration in the scope of the coroutine denoted by this coroutine.
+\expects
+The coroutine whose promise object is \tcode{*this} is at the top of the stack
+of associated coroutines of some \tcode{generator} instance \tcode{x}.
 
 \returns
 An object of an unspecified awaitable type~([expr.await])
-which takes ownership of the generator \tcode{g}.
-\end{itemdescr}
+which takes ownership of the generator \tcode{g}, whose member \tcode{await_suspend}
+pushes \tcode{g.\exposid{coroutine_}} atop the stack of
+coroutines associated with \tcode{x}
+before resuming execution of \tcode{g.\exposid{coroutine_}}, and
+whose member \tcode{await_resume} rethrows any exception captured by
+a call to \tcode{g.\exposid{coroutine_}.promise()}'s member
+\tcode{unhandled_exception}.
 
+\begin{note}
+Variables with automatic storage duration in the scope of
+the coroutine represented by \tcode{g.\exposid{coroutine_}} are destroyed
+before variables with automatic storage duration in the scope of
+the coroutine whose promise object is \tcode{*this}.
+\end{note}
+\end{itemdescr}
 
 \begin{itemdecl}
 template<ranges::input_range R, class Alloc2>
@@ -1348,7 +1386,18 @@ void unhandled_exception();
 \end{itemdecl}
 
 \begin{itemdescr}
-\effects Equivalent to: \tcode{throw;}
+\expects
+The coroutine whose promise object is \tcode{*this} is at the top of the stack
+of associated coroutines of some \tcode{generator} instance \tcode{x}.
+
+\effects
+If the coroutine whose promise object is \tcode{*this}
+is the sole element of \tcode{x}'s stack of associated coroutines,
+equivalent to: \tcode{throw}.
+Otherwise, stores the result of \tcode{current_exception()}
+where it can later be retrieved and rethrown by the \tcode{await_resume}
+member of the awaitable object returned from the \tcode{yield_value} call
+that pushed this coroutine onto \tcode{x}'s stack of associated coroutines.
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1466,7 +1515,7 @@ private:
 \end{codeblock}
 
 \begin{itemdecl}
- @\exposid{iterator}@(@\exposid{iterator}@&& other) noexcept;
+@\exposid{iterator}@(@\exposid{iterator}@&& other) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
@@ -1491,12 +1540,17 @@ Reference operator*() const noexcept(is_nothrow_copy_constructible_v<Reference>)
 
 \begin{itemdescr}
 \expects
-\tcode{\exposid{coroutine_}.done()} is \tcode{false}.
+\tcode{\exposid{coroutine_}.done()} is \tcode{false}, and \exposid{coroutine_}
+
+Let \tcode{p} be the promise object of the coroutine
+at the top of the stack of coroutines associated with
+the \tcode{generator} whose stack of associated coroutines
+includes \tcode{coroutine_}.
 
 \effects
 Equivalent to:
 \begin{codeblock}
-    return \@exposid{coroutine_}@.promise().@\exposid{value_}@;
+    return static_cast<Reference>(*p.@\exposid{value_}@);
 \end{codeblock}
 \end{itemdescr}
 
@@ -1508,11 +1562,15 @@ Equivalent to:
 \expects
 \tcode{\exposid{coroutine_}.done()} is \tcode{false}.
 
-% \effects
+\effects
+Resumes the coroutine at the top of the stack of coroutines associated with
+the \tcode{generator} whose stack of associated coroutines
+includes \tcode{coroutine_}.
 
-\returns \tcode{return *this};
-
+\returns
+\tcode{return *this};
 \end{itemdescr}
+
 \begin{itemdecl}
 void operator++(int);
 \end{itemdecl}
