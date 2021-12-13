@@ -35,7 +35,7 @@ their unpublished D2168R4 for continuity of design.
 
 \section{Revisions}
 
-\subsection{PXXXXR0}
+\subsection{P2502R0}
 \begin{itemize}
 \item Reorder \tcode{generator}'s first two template parameters,
   so the value type precedes the reference type.
@@ -118,14 +118,25 @@ This is because the coroutine state is a unique resource (even if the coroutine 
 Multiple options are available as to where to put the \tcode{generator} class.
 
 \begin{itemize}
-    \item \tcode{<coroutine>}, but \tcode{<coroutine>} is a low level header,
-      and \tcode{generator} depends on bits of \tcode{<type_traits>} and \tcode{<iterator>}.
+\item \tcode{<coroutine>}, but \tcode{<coroutine>} is a low level header,
+  and \tcode{generator} depends on bits of \tcode{<type_traits>} and \tcode{<iterator>}.
 
-    \item \tcode{<ranges>}
+\item \tcode{<ranges>}
 
-    \item A new \tcode{<generator>}
-
+\item A new \tcode{<generator>}
 \end{itemize}
+
+This paper uses a new \tcode{<generator>} header since P2168R3 did so,
+and LEWG has provided no guidance to do otherwise.
+We do note on our MSVC STL branch implementation that
+\tcode{\#include<ranges>} includes ~52.6k lines of code, and
+\tcode{\#include<generator>} ~53.3k lines.
+(Note that \tcode{<generator>} is specified to include
+both \tcode{<ranges>} and \tcode{<coroutines>}.)
+Defining \tcode{generator} in \tcode{<ranges>}
+together with a \tcode{\#include<coroutine>}
+would penalize people who want \tcode{<ranges>}
+but not \tcode{generator} by about 610 LoC.
 
 \section{Reference type}
 
@@ -157,7 +168,7 @@ This first parameter, therefore, does a lot of heavy lifting.
 \subsection{Obsolete discussion about reference specification}
 
 \begin{note}
-Before PXXXXR0, \tcode{generator}'s first parameter
+Before P2502R0, \tcode{generator}'s first parameter
 \tcode{Type} denoted the reference type of the range / iterators, and
 the value type was defaulted to \tcode{remove_cvref_t<Type>}.
 The following sections of design discussion are written
@@ -386,7 +397,7 @@ and that we could choose that function so as to avoid the pitfall that
 an inadvertent choice of a non-reference reference type
 can introduce additonal copies.
 
-In PXXXXR0, \tcode{generator}'s first parameter \tcode{T} names
+In P2502R0, \tcode{generator}'s first parameter \tcode{T} names
 the value type of the range and iterators,
 and the second parameter \tcode{Reference} names
 the reference type of the range and iterators.
