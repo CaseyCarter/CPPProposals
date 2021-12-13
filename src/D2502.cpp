@@ -1,5 +1,5 @@
 ////////////////////////////////////////////////////////////////
-// Reference implementation of std::generator proposal P2168R5.
+// Reference implementation of std::generator proposal D2502R0.
 //
 // Incorporates a suggested change to require use of ranges::elements_of(range)
 // when yielding elements of a child range from a generator.
@@ -231,46 +231,54 @@ namespace std {
         elements_of(_Rng&&, _Alloc = {}) -> elements_of<_Rng, _Alloc>;
     } // namespace ranges
 
-    template <class _Ty, class _Ref = const _Ty&, class _Alloc = void>
+
+    template <class _Ty, class _Alloc = void, class _Uty = void>
     class generator;
+
+    template <class _Ty, class _Uty>
+    using _Generator_value_t = conditional_t<is_void_v<_Uty>, remove_cvref_t<_Ty>, _Uty>;
+    template <class _Ty, class _Uty>
+    using _Generator_reference_t =
+        conditional_t<is_void_v<_Uty>, conditional_t<is_reference_v<_Ty>, _Ty, const _Ty&>, _Ty>;
 
     template <class _Ref>
     using _Generator_yield_t = conditional_t<is_reference_v<_Ref>, _Ref, const _Ref&>;
 
-    template <class _Ref>
+    template <class _Yielded>
     class _Generator_promise_base {
     public:
-        static_assert(is_reference_v<_Ref>);
+        static_assert(is_reference_v<_Yielded>);
 
         suspend_always initial_suspend() noexcept {
             return {};
         }
 
-        auto final_suspend() noexcept {
+        [[nodiscard]] auto final_suspend() noexcept {
             return _Final_awaiter{};
         }
 
-        suspend_always yield_value(_Ref _Val) noexcept {
+        [[nodiscard]] suspend_always yield_value(_Yielded _Val) noexcept {
             _Ptr = ::std::addressof(_Val);
             return {};
         }
 
-        template <class _Ty, class _Ref2, class _Alloc, class _Alloc2>
-            requires same_as<_Generator_yield_t<_Ref2>, _Ref>
-        auto yield_value(
-            ::std::ranges::elements_of<generator<_Ty, _Ref2, _Alloc>, _Alloc2> _Elem) noexcept {
-            return _Nested_awaitable<_Ty, _Ref2, _Alloc>{_Elem.range()};
+        template <class _Ty, class _Alloc, class _Uty, class _Alloc2>
+            requires same_as<_Generator_yield_t<_Generator_reference_t<_Ty, _Uty>>, _Yielded>
+        [[nodiscard]] auto yield_value(
+            ::std::ranges::elements_of<generator<_Ty, _Alloc, _Uty>, _Alloc2> _Elem) noexcept {
+            return _Nested_awaitable<_Ty, _Alloc, _Uty>{_Elem.range()};
         }
 
         template <::std::ranges::input_range _Rng, class _Alloc>
-            requires convertible_to<::std::ranges::range_reference_t<_Rng>, _Ref>
-        auto yield_value(::std::ranges::elements_of<_Rng, _Alloc> _Elem) noexcept {
+            requires convertible_to<::std::ranges::range_reference_t<_Rng>, _Yielded>
+        [[nodiscard]] auto yield_value(
+            ::std::ranges::elements_of<_Rng, _Alloc> _Elem) noexcept {
             using _Ty     = ::std::ranges::range_value_t<_Rng>;
             auto&& _Range = _Elem.range();
-            return _Nested_awaitable<_Ty, _Ref, _Alloc>{
-                [](allocator_arg_t, _Alloc, auto* _Range_ptr) -> generator<_Ty, _Ref, _Alloc> {
+            return _Nested_awaitable<_Yielded, _Alloc, _Ty>{
+                [](allocator_arg_t, _Alloc, auto* _Range_ptr) -> generator<_Yielded, _Alloc, _Ty> {
                     for (auto&& e : *_Range_ptr) {
-                        co_yield static_cast<_Ref>(::std::forward<decltype(e)>(e));
+                        co_yield static_cast<_Yielded>(::std::forward<decltype(e)>(e));
                     }
                 }(allocator_arg, _Elem.get_allocator(), ::std::addressof(_Range))};
         }
@@ -295,12 +303,13 @@ namespace std {
         };
 
         struct _Final_awaiter {
-            bool await_ready() noexcept {
+            [[nodiscard]] bool await_ready() noexcept {
                 return false;
             }
 
             template <class _Promise>
-            coroutine_handle<> await_suspend(coroutine_handle<_Promise> _Handle) noexcept {
+            [[nodiscard]] coroutine_handle<> await_suspend(
+                coroutine_handle<_Promise> _Handle) noexcept {
 #ifdef __cpp_lib_is_pointer_interconvertible
                 static_assert(
                     is_pointer_interconvertible_base_of_v<_Generator_promise_base, _Promise>);
@@ -320,20 +329,22 @@ namespace std {
             void await_resume() noexcept {}
         };
 
-        template <class _Ty, class _Ref2, class _Alloc>
+        template <class _Ty, class _Alloc, class _Uty>
         struct _Nested_awaitable {
-            _Nest_info _Nested;
-            generator<_Ty, _Ref2, _Alloc> _Gen;
+            static_assert(same_as<_Generator_yield_t<_Generator_reference_t<_Ty, _Uty>>, _Yielded>);
 
-            explicit _Nested_awaitable(generator<_Ty, _Ref2, _Alloc>&& _Gen_) noexcept
+            _Nest_info _Nested;
+            generator<_Ty, _Alloc, _Uty> _Gen;
+
+            explicit _Nested_awaitable(generator<_Ty, _Alloc, _Uty>&& _Gen_) noexcept
                 : _Gen(::std::move(_Gen_)) {}
 
-            bool await_ready() noexcept {
+            [[nodiscard]] bool await_ready() noexcept {
                 return !_Gen._Coro;
             }
 
             template <class _Promise>
-            coroutine_handle<_Generator_promise_base> await_suspend(
+            [[nodiscard]] coroutine_handle<_Generator_promise_base> await_suspend(
                 coroutine_handle<_Promise> _Current) noexcept {
 #ifdef __cpp_lib_is_pointer_interconvertible
                 static_assert(
@@ -367,14 +378,14 @@ namespace std {
         // _Top and _Info are mutually exclusive, and could potentially be merged.
         coroutine_handle<_Generator_promise_base> _Top =
             coroutine_handle<_Generator_promise_base>::from_promise(*this);
-        add_pointer_t<_Ref> _Ptr = nullptr;
-        _Nest_info* _Info        = nullptr;
+        add_pointer_t<_Yielded> _Ptr = nullptr;
+        _Nest_info* _Info            = nullptr;
     };
 
-    template <class _Ty, class _Ref>
+    template <class _Value, class _Ref>
     class _Generator_iterator {
     public:
-        using value_type      = _Ty;
+        using value_type      = _Value;
         using difference_type = ptrdiff_t;
 
         _Generator_iterator(_Generator_iterator&& _That) noexcept
@@ -415,28 +426,28 @@ namespace std {
         coroutine_handle<_Generator_promise_base<_Generator_yield_t<_Ref>>> _Coro;
     };
 
-    template <class _Ty, class _Ref, class _Alloc>
+    template <class _Ty, class _Alloc, class _Uty>
     class generator {
     public:
-        static_assert(same_as<remove_cvref_t<_Ty>, _Ty>,
-            "generator's first argument must be a cv-unqualified object type");
+        using _Value = _Generator_value_t<_Ty, _Uty>;
+        static_assert(same_as<remove_cvref_t<_Value>, _Value> && is_object_v<_Value>,
+            "generator's value type must be a cv-unqualified object type");
 
-        // clang-format off
-    static_assert(is_reference_v<_Ref>
-        || (is_object_v<_Ref> && same_as<remove_cv_t<_Ref>, _Ref> && copy_constructible<_Ref>),
-        "generator's second argument must be a reference type or a cv-unqualified "
-        "copy-constructible object type");
+        using _Ref = _Generator_reference_t<_Ty, _Uty>;
+        static_assert(is_reference_v<_Ref>
+            || (is_object_v<_Ref> && same_as<remove_cv_t<_Ref>, _Ref> && copy_constructible<_Ref>),
+            "generator's second argument must be a reference type or a cv-unqualified "
+            "copy-constructible object type");
 
-    using _RRef = conditional_t<is_lvalue_reference_v<_Ref>, remove_reference_t<_Ref>&&, _Ref>;
+        using _RRef = conditional_t<is_lvalue_reference_v<_Ref>, remove_reference_t<_Ref>&&, _Ref>;
 
-    static_assert(common_reference_with<_Ref&&, _Ty&> && common_reference_with<_Ref&&, _RRef&&>
-        && common_reference_with<_RRef&&, const _Ty&>,
-        "an iterator with the selected value and reference types cannot model indirectly_readable");
-        // clang-format on
+        static_assert(common_reference_with<_Ref&&, _Value&> && common_reference_with<_Ref&&, _RRef&&>
+            && common_reference_with<_RRef&&, const _Value&>,
+            "an iterator with the selected value and reference types cannot model indirectly_readable");
 
         struct _EMPTY_BASES promise_type : _Promise_allocator<_Alloc>,
                                            _Generator_promise_base<_Generator_yield_t<_Ref>> {
-            generator get_return_object() noexcept {
+            [[nodiscard]] generator get_return_object() noexcept {
                 return generator(coroutine_handle<promise_type>::from_promise(*this));
             }
         };
@@ -456,15 +467,17 @@ namespace std {
         }
 
         generator& operator=(generator&& _That) noexcept {
-            _Coro = ::std::exchange(_That._Coro, {});
+            if (auto _Old = ::std::exchange(_Coro, ::std::exchange(_That._Coro, {}))) {
+                _Old.destroy();
+            }
             return *this;
         }
 
-        [[nodiscard]] _Generator_iterator<_Ty, _Ref> begin() {
+        [[nodiscard]] _Generator_iterator<_Value, _Ref> begin() {
             // Pre: _Coro is suspended at its initial suspend point
             assert(_Coro && "Can't call begin on moved-from generator");
             _Coro.resume();
-            return _Generator_iterator<_Ty, _Ref>{
+            return _Generator_iterator<_Value, _Ref>{
                 coroutine_handle<_Generator_promise_base<_Generator_yield_t<_Ref>>>::from_address(
                     _Coro.address())};
         }
@@ -482,8 +495,8 @@ namespace std {
     };
 
     namespace ranges {
-        template <class _Ty, class _Ref, class _Alloc>
-        inline constexpr bool enable_view<generator<_Ty, _Ref, _Alloc>> = true;
+        template <class _Ty, class _Alloc, class _Uty>
+        inline constexpr bool enable_view<generator<_Ty, _Alloc, _Uty>> = true;
     }
 } // namespace std
 
@@ -564,7 +577,7 @@ namespace {
         }
     };
 
-    std::generator<X, X> always_ref_example() {
+    std::generator<X, void, X> always_ref_example() {
         co_yield X{1};
         {
             X x{2};
@@ -580,21 +593,21 @@ namespace {
         }
     }
 
-    std::generator<X, X&&> xvalue_example() {
+    std::generator<X&&> xvalue_example() {
         co_yield X{1};
         X x{2};
         // co_yield x; // ill-formed: lvalue -> rvalue
         co_yield std::move(x);
     }
 
-    std::generator<X, const X&> const_lvalue_example() {
+    std::generator<const X&> const_lvalue_example() {
         co_yield X{1}; // OK
         const X x{2};
         co_yield x; // OK
         co_yield std::move(x); // OK: same as above
     }
 
-    std::generator<X, X&> lvalue_example() {
+    std::generator<X&> lvalue_example() {
         // co_yield X{1}; // ill-formed: prvalue -> non-const lvalue
         X x{2};
         co_yield x; // OK
@@ -607,7 +620,7 @@ namespace {
 
     // value_type = std::unique_ptr<int>
     // reference = std::unique_ptr<int>&&
-    std::generator<std::unique_ptr<int>, std::unique_ptr<int>&&> unique_ints(const int high) {
+    std::generator<std::unique_ptr<int>&&> unique_ints(const int high) {
         for (auto i = 0; i < high; ++i) {
             co_yield std::make_unique<int>(i);
         }
@@ -623,7 +636,7 @@ namespace {
     // value_type = std::string
     // reference = std::string_view
     template <typename Allocator>
-    std::generator<std::string, std::string_view> strings(std::allocator_arg_t, Allocator) {
+    std::generator<std::string_view, void, std::string> strings(std::allocator_arg_t, Allocator) {
         co_yield {};
         co_yield "start";
         for (auto sv : string_views()) {
@@ -646,8 +659,8 @@ namespace {
     // the reference type is a tuple of references and
     // the value type is a tuple of values.
     template <std::ranges::range... Rs, std::size_t... Indices>
-    std::generator<std::tuple<std::ranges::range_value_t<Rs>...>,
-        std::tuple<std::ranges::range_reference_t<Rs>...>&&>
+    std::generator<std::tuple<std::ranges::range_reference_t<Rs>...>, void,
+        std::tuple<std::ranges::range_value_t<Rs>...>>
         zip_impl(std::index_sequence<Indices...>, Rs... rs) {
         std::tuple<std::ranges::iterator_t<Rs>...> its{std::ranges::begin(rs)...};
         std::tuple<std::ranges::sentinel_t<Rs>...> itEnds{std::ranges::end(rs)...};
@@ -658,8 +671,8 @@ namespace {
     }
 
     template <std::ranges::range... Rs>
-    std::generator<std::tuple<std::ranges::range_value_t<Rs>...>,
-        std::tuple<std::ranges::range_reference_t<Rs>...>&&>
+    std::generator<std::tuple<std::ranges::range_reference_t<Rs>...>, void,
+        std::tuple<std::ranges::range_value_t<Rs>...>>
         zip(Rs&&... rs) {
         return zip_impl(std::index_sequence_for<Rs...>{}, std::views::all(std::forward<Rs>(rs))...);
     }
@@ -714,18 +727,17 @@ namespace {
         }
     };
 
-    std::generator<int, const int&, std::allocator<std::byte>> stateless_example() {
+    std::generator<int, std::allocator<std::byte>> stateless_example() {
         co_yield 42;
     }
 
-    std::generator<int, const int&, std::allocator<std::byte>> stateless_example(
+    std::generator<int, std::allocator<std::byte>> stateless_example(
         std::allocator_arg_t, std::allocator<std::byte>) {
         co_yield 42;
     }
 
     template <typename Allocator>
-    std::generator<int, const int&, Allocator> stateful_alloc_example(
-        std::allocator_arg_t, Allocator) {
+    std::generator<int, Allocator> stateful_alloc_example(std::allocator_arg_t, Allocator) {
         co_yield 42;
     }
 
