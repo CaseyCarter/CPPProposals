@@ -10,7 +10,7 @@
 \newcolumntype{?}{!{\vrule width 1pt}}
 
 \title{\tcode{std::generator}: Synchronous Coroutine Generator for Ranges}
-\docnumber{D2502R0}
+\docnumber{D2502R1}
 \audience{LEWG}
 \author{Casey Carter}{Casey@Carter.net}
 %% \authortwo{Lewis Baker}{lewissbaker@gmail.com}
@@ -19,6 +19,9 @@
 \begin{document}
 \maketitle
 
+% TODO:
+% * consider the "Mathias alternative" for generator<non-reference>.
+% * detail "new header" vs. "<ranges>"
 
 \section{Abstract}
 
@@ -1073,7 +1076,9 @@ constexpr Allocator get_allocator() const noexcept;
 \end{itemdescr}
 \end{addedblock}
 
-Drafting Note: Add the following subclause to the end of [ranges]:
+\begin{draftnote}
+Add the following subclause to the end of [ranges]:
+\end{draftnote}
 
 \begin{addedblock}
 \rSec2[coroutine.generator]{Range Generators}
