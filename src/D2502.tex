@@ -1193,9 +1193,8 @@ can model \tcode{indirectly_readable} and thus \tcode{input_iterator}.
 
 Specializations of \tcode{generator} model \tcode{view} and \tcode{input_range}.
 
-The behavior of a program that defines
-a partial or explicit specialization of \tcode{generator}
-is undefined.
+The behavior of a program that adds a specialization
+for \tcode{generator} is undefined.
 
 An instance of \tcode{generator} has
 an associated stack of coroutines,
