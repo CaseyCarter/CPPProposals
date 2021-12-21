@@ -20,8 +20,8 @@
 \maketitle
 
 % TODO:
-% * consider the "Mathias alternative" for generator<non-reference>.
 % * detail "new header" vs. "<ranges>"
+% * consider the "Mathias alternative" for generator<non-reference>.
 
 \section{Abstract}
 
@@ -37,6 +37,13 @@ This paper is presented as a new revision of
 their unpublished D2168R4 for continuity of design.
 
 \section{Revisions}
+
+\subsection{P2502R1}
+\begin{itemize}
+\item The type \tcode{generator::yielded}
+  is now publicly-visible and not exposition-only
+  per 2021-12-13 LEWG discussion.
+\end{itemize}
 
 \subsection{P2502R0}
 \begin{itemize}
@@ -1141,11 +1148,12 @@ namespace std {
       conditional_t<is_void_v<U>,
         conditional_t<is_reference_v<T>, T, const T&>,
         T>;
-    using @\exposid{yielded}@ = // \expos
-      conditional_t<is_reference_v<@\exposid{reference}@>, @\exposid{reference}@, const @\exposid{reference}@&>;
     class @\exposid{iterator}@; // \expos
 
   public:
+    using yielded =
+      conditional_t<is_reference_v<@\exposid{reference}@>, @\exposid{reference}@, const @\exposid{reference}@&>;
+
     class promise_type;
 
     generator(const generator&) = delete;
@@ -1297,7 +1305,7 @@ template<class T, class Allocator, class U>
 class generator<T, Allocator, U>::promise_type {
   friend generator;
 
-  add_pointer_t<@\exposid{yielded}@> @\exposid{value_}@ = nullptr; // \expos
+  add_pointer_t<yielded> @\exposid{value_}@ = nullptr; // \expos
 
 public:
   generator get_return_object() noexcept;
@@ -1306,14 +1314,14 @@ public:
 
   auto final_suspend() noexcept;
 
-  suspend_always yield_value(@\exposid{yielded}@ value) noexcept;
+  suspend_always yield_value(yielded value) noexcept;
 
   template<class T2, class Alloc2, class U2>
-    requires same_as<typename generator<T2, Alloc2, U2>::@\exposid{yielded}@, @\exposid{yielded}@>
+    requires same_as<typename generator<T2, Alloc2, U2>::yielded, yielded>
       auto yield_value(ranges::elements_of<generator<T2, Alloc2, U2>> g) noexcept;
 
   template<ranges::input_range R, class Alloc2>
-    requires convertible_to<ranges::range_reference_t<R>, @\exposid{yielded}@>
+    requires convertible_to<ranges::range_reference_t<R>, yielded>
       auto yield_value(ranges::elements_of<R, Alloc2> r) noexcept;
 
   void await_transform() = delete;
@@ -1372,7 +1380,7 @@ and resumes execution of the new top-of-stack coroutine, if any.
 \end{itemdescr}
 
 \begin{itemdecl}
-suspend_always yield_value(@\exposid{yielded}@ x) noexcept;
+suspend_always yield_value(yielded x) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
@@ -1386,7 +1394,7 @@ Equivalent to:
 
 \begin{itemdecl}
 template<class T2, class Alloc2, class U2>
-  requires same_as<typename generator<T2, Alloc2, U2>::@\exposid{yielded}@, @\exposid{yielded}@>
+  requires same_as<typename generator<T2, Alloc2, U2>::yielded, yielded>
     auto yield_value(ranges::elements_of<generator<T2, Alloc2, U2>> g) noexcept;
 \end{itemdecl}
 
@@ -1415,7 +1423,7 @@ the coroutine whose promise object is \tcode{*this}.
 
 \begin{itemdecl}
 template<ranges::input_range R, class Alloc2>
-  requires convertible_to<ranges::range_reference_t<R>, @\exposid{yielded}@>
+  requires convertible_to<ranges::range_reference_t<R>, yielded>
     auto yield_value(ranges::elements_of<R, Alloc2> r) noexcept;
 \end{itemdecl}
 
@@ -1424,9 +1432,9 @@ template<ranges::input_range R, class Alloc2>
 Equivalent to:
 \begin{codeblock}
     auto nested = [](allocator_arg_t, Alloc2, auto* range_ptr)
-      -> generator<@\exposid{yielded}@, Alloc2, ranges::range_value_t<R>> {
+      -> generator<yielded, Alloc2, ranges::range_value_t<R>> {
         for (auto&& e : *range_ptr)
-          co_yield static_cast<@\exposid{yielded}@>(std::forward<decltype(e)>(e));
+          co_yield static_cast<yielded>(std::forward<decltype(e)>(e));
       };
     auto&& rng = r.range();
     return yield_value(ranges::elements_of(nested(
