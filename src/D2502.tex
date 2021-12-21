@@ -21,7 +21,10 @@
 
 % TODO:
 % * detail "new header" vs. "<ranges>"
-% * consider the "Mathias alternative" for generator<non-reference>.
+% * The "Mathias alternative": generator<meow> should behave
+%   like generator<meow&&> instead of like generator<meow const&>
+% * LB's concern: "It bothers me that generator<T>, generator<const T>, and
+%   generator<const T&> are different types with identical behavior"
 
 \section{Abstract}
 
@@ -43,6 +46,8 @@ their unpublished D2168R4 for continuity of design.
 \item The type \tcode{generator::yielded}
   is now publicly-visible and not exposition-only
   per 2021-12-13 LEWG discussion.
+\item Feature-test macro insertion is now
+  ordered properly with the other wording.
 \end{itemize}
 
 \subsection{P2502R0}
@@ -942,6 +947,17 @@ The code for these benchmarks, as well as more detailed results, can be found on
 
 \begin{draftnote}
 Wording is relative to Working Draft N4901 \cite{N4901}. \\
+Insert in lexicographical order in [version.syn]
+(updating \tcode{YYYYXXL} to the date of merge):
+\end{draftnote}
+
+\begin{addedblock}
+\begin{codeblock}
+#define __cpp_lib_generator                       YYYYXXL // also in <generator>
+\end{codeblock}
+\end{addedblock}
+
+\begin{draftnote}
 Modify [ranges.general] as follows:
 \end{draftnote}
 
@@ -1662,20 +1678,6 @@ explicit @\exposid{iterator}@(coroutine_handle<promise_type> coroutine) noexcept
 Initializes \tcode{\exposid{coroutine_}} with \tcode{coroutine}.
 \end{itemdescr}
 
-\end{addedblock}
-
-
-\section{Feature test macro}
-
-\begin{draftnote}
-Insert in lexicographical order in [version.syn]
-(updating \tcode{YYYYXXL} to the date of merge):
-\end{draftnote}
-
-\begin{addedblock}
-\begin{codeblock}
-    #define __cpp_lib_generator YYYYXXL // also in <generator>
-\end{codeblock}
 \end{addedblock}
 
 \newpage
