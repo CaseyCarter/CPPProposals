@@ -48,6 +48,8 @@ their unpublished D2168R4 for continuity of design.
   per 2021-12-13 LEWG discussion.
 \item Feature-test macro insertion is now
   ordered properly with the other wording.
+\item Coroutines for \tcode{generator<T\&\&>} can now yield lvalues;
+  the generated element is an xvalue denoting a copy of the lvalue.
 \end{itemize}
 
 \subsection{P2502R0}
@@ -1332,6 +1334,11 @@ public:
 
   suspend_always yield_value(yielded value) noexcept;
 
+  template<class Y = remove_reference_t<yielded>>
+    requires is_rvalue_reference_v<yielded> &&
+      constructible_from<remove_cvref_t<yielded>, const Y&>
+        auto yield_value(const type_identity_t<Y>& lvalue);
+
   template<class T2, class Alloc2, class U2>
     requires same_as<typename generator<T2, Alloc2, U2>::yielded, yielded>
       auto yield_value(ranges::elements_of<generator<T2, Alloc2, U2>> g) noexcept;
@@ -1406,6 +1413,26 @@ Equivalent to:
 
 \returns
 \tcode{\{\}}.
+\end{itemdescr}
+
+\begin{itemdecl}
+template<class Y = remove_reference_t<yielded>>
+  auto yield_value(const type_identity_t<Y>& lvalue)
+    requires is_rvalue_reference_v<yielded> &&
+      constructible_from<remove_cvref_t<yielded>, const Y&>;
+\end{itemdecl}
+
+\begin{itemdescr}
+\returns
+An object of an unspecified awaitable type~([expr.await])
+that stores an object of type \tcode{remove_cv_t<Y>}
+direct-non-list-initialized with \tcode{lvalue},
+whose member functions arrange for
+\tcode{\exposid{value_}} to point at that stored object
+before suspending the coroutine.
+
+\throws
+Any exception thrown by the initialization of the stored object.
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1706,7 +1733,7 @@ Initializes \tcode{\exposid{coroutine_}} with \tcode{coroutine}.
     \bibitem[Implementation]{Implementation}
     Casey Carter, Lewis Baker, Corentin Jabot
     \emph{\tcode{std::generator} implementation}\newline
-    \url{https://godbolt.org/z/oo75fTMc6}
+    \url{https://godbolt.org/z/1Go9oxPWz}
 
 \end{thebibliography}
 

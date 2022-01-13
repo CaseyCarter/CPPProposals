@@ -262,6 +262,15 @@ namespace std {
             return {};
         }
 
+        // clang-format off
+        template <class _Uty = remove_reference_t<_Yielded>>
+            requires (is_rvalue_reference_v<_Yielded> && constructible_from<remove_cvref_t<_Yielded>, const _Uty&>)
+        [[nodiscard]] auto yield_value(type_identity_t<const _Uty&> _Val)
+            noexcept(is_nothrow_constructible_v<remove_cvref_t<_Yielded>, const _Uty&>) {
+            // clang-format on
+            return _Element_awaiter{_Val};
+        }
+
         template <class _Ty, class _Alloc, class _Uty, class _Alloc2>
             requires same_as<_Generator_yield_t<_Generator_reference_t<_Ty, _Uty>>, _Yielded>
         [[nodiscard]] auto yield_value(
@@ -296,6 +305,26 @@ namespace std {
         }
 
     private:
+        struct _Element_awaiter {
+            remove_cvref_t<_Yielded> _Val;
+
+            [[nodiscard]] constexpr bool await_ready() const noexcept {
+                return false;
+            }
+
+            template <class _Promise>
+            constexpr void await_suspend(coroutine_handle<_Promise> _Handle) noexcept {
+#ifdef __cpp_lib_is_pointer_interconvertible
+                static_assert(is_pointer_interconvertible_base_of_v<_Generator_promise_base, _Promise>);
+#endif // __cpp_lib_is_pointer_interconvertible
+
+                _Generator_promise_base& _Current = _Handle.promise();
+                _Current._Ptr                     = ::std::addressof(_Val);
+            }
+
+            constexpr void await_resume() const noexcept {}
+        };
+
         struct _Nest_info {
             exception_ptr _Except;
             coroutine_handle<_Generator_promise_base> _Parent;
@@ -426,6 +455,13 @@ namespace std {
         coroutine_handle<_Generator_promise_base<_Generator_yield_t<_Ref>>> _Coro;
     };
 
+    template <class _Yield, class _Alloc>
+    struct _EMPTY_BASES _Generator_promise : _Promise_allocator<_Alloc>, _Generator_promise_base<_Yield> {
+        [[nodiscard]] coroutine_handle<_Generator_promise> get_return_object() noexcept {
+            return coroutine_handle<_Generator_promise>::from_promise(*this);
+        }
+    };
+
     template <class _Ty, class _Alloc, class _Uty>
     class generator {
     public:
@@ -445,18 +481,16 @@ namespace std {
             && common_reference_with<_RRef&&, const _Value&>,
             "an iterator with the selected value and reference types cannot model indirectly_readable");
 
-        struct _EMPTY_BASES promise_type : _Promise_allocator<_Alloc>,
-                                           _Generator_promise_base<_Generator_yield_t<_Ref>> {
-            [[nodiscard]] generator get_return_object() noexcept {
-                return generator(coroutine_handle<promise_type>::from_promise(*this));
-            }
-        };
+        friend _Generator_promise_base<_Generator_yield_t<_Ref>>;
+        using promise_type = _Generator_promise<_Generator_yield_t<_Ref>, _Alloc>;
         static_assert(is_standard_layout_v<promise_type>);
 #ifdef __cpp_lib_is_pointer_interconvertible
         static_assert(
             is_pointer_interconvertible_base_of_v<_Generator_promise_base<_Generator_yield_t<_Ref>>,
                 promise_type>);
 #endif // __cpp_lib_is_pointer_interconvertible
+
+        generator(coroutine_handle<promise_type> _Coro_) noexcept : _Coro(_Coro_) {}
 
         generator(generator&& _That) noexcept : _Coro(::std::exchange(_That._Coro, {})) {}
 
@@ -487,10 +521,6 @@ namespace std {
         }
 
     private:
-        explicit generator(coroutine_handle<promise_type> _Coro_) noexcept : _Coro(_Coro_) {}
-
-        friend _Generator_promise_base<_Generator_yield_t<_Ref>>;
-
         coroutine_handle<promise_type> _Coro = nullptr;
     };
 
@@ -581,11 +611,13 @@ namespace {
         co_yield X{1};
         {
             X x{2};
-            // co_yield x; // ill-formed: lvalue -> rvalue
+            co_yield x;
+            assert(x.id == 2);
         }
         {
             const X x{3};
-            // co_yield x; // ill-formed: lvalue -> rvalue
+            co_yield x;
+            assert(x.id == 3);
         }
         {
             X x{4};
@@ -596,7 +628,8 @@ namespace {
     std::generator<X&&> xvalue_example() {
         co_yield X{1};
         X x{2};
-        // co_yield x; // ill-formed: lvalue -> rvalue
+        co_yield x; // well-formed: generated element is copy of lvalue
+        assert(x.id == 2);
         co_yield std::move(x);
     }
 
