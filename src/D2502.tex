@@ -19,13 +19,6 @@
 \begin{document}
 \maketitle
 
-% TODO:
-% * detail "new header" vs. "<ranges>"
-% * The "Mathias alternative": generator<meow> should behave
-%   like generator<meow&&> instead of like generator<meow const&>
-% * LB's concern: "It bothers me that generator<T>, generator<const T>, and
-%   generator<const T&> are different types with identical behavior"
-
 \section{Abstract}
 
 We propose a standard library type \tcode{std::generator}
@@ -66,6 +59,10 @@ their unpublished D2168R4 for continuity of design.
   the final template parameter.
 \item Simplify \tcode{elements_of} into a vanilla two-element \tcode{struct}.
 \item Update implementations accordingly.
+\item Per 2022-01-025 LEWG direction, \tcode{generator<T>}
+  now behaves like \tcode{generator<T\&\&>}
+  instead of like \tcode{generator<const T\&>}
+  per the design in P2529R0 \cite{P2529R0}.
 \end{itemize}
 
 \subsection{P2502R0}
@@ -179,10 +176,7 @@ but not \tcode{generator} by about 610 LoC.
 From \tcode{R} and \tcode{V}, we derive types:
 \begin{codeblock}
 using Value = conditional_t<is_void_v<V>, remove_cvref_t<R>, V>;}
-using Reference =
-  conditional_t<is_void_v<V>,
-    conditional_t<is_reference_v<R>, R, const R&>,
-    R>;
+using Reference = conditional_t<is_void_v<V>, R&&, R>;
 using Yielded = conditional_t<is_reference_v<Reference>, Reference, const Reference&>;
 \end{codeblock}
 
@@ -190,7 +184,7 @@ using Yielded = conditional_t<is_reference_v<Reference>, Reference, const Refere
 \item \tcode{Value} is a cv-unqualified object type that specifies the value type
   of the \tcode{generator}'s range and iterators,
 \item \tcode{Reference} specifies the reference type
-  (not necessarily a core language reference)
+  (not necessarily a core language reference type)
   of the \tcode{generator}'s range and iterators, and
 \item \tcode{Allocator} is the type of allocator used for the coroutine state,
   which can be \tcode{void} to type-erase
@@ -210,7 +204,7 @@ The resulting generator:
 \item has a value type of \tcode{remove_cvref_t<meow>}
 \item has a reference type of \tcode{meow},
   if it is a reference type,
-  or \tcode{const meow\&} otherwise,
+  or \tcode{meow\&\&} otherwise,
 \item expects \tcode{co_yield} to appear in the body of the generator
   with operands that are convertible to the reference type, and
 \item can use any allocator (via type-erasure)
@@ -228,9 +222,9 @@ yielding a reference to the same constant value.
 
 As a nod to ease of use, and to more readily reflect the semantics of
 prvalue-returning functions, we allow yielding lvalues from generators
-with an xvalue reference type when the lvalue is copyable. The result is that
+with an rvalue reference type when the lvalue is copyable. The result is that
 the yielded lvalue is copied into temporary storage, and an iterator for the
-generator will return an xvalue denoting that copy.
+generator will return an xvalue denoting that copy when dereferenced.
 
 \subsection{\tcode{generator<meow, woof>}}
 For the rare user who needs \tcode{generator}
@@ -274,8 +268,9 @@ template <class R, class V = void>
 using my_generator = generator<R, V, my_allocator>;
 \end{codeblock}
 to ease declarations.
-In practice, this should make \tcode{generator<R, void, my_allocator>}
-appear quite rarely in real code.
+In practice, this should mean \tcode{generator<R, void, my_allocator>}
+(with an explicit second argument of \tcode{void})
+appears quite rarely in real code.
 
 \subsection{\tcode{Allocator = void}}
 
@@ -491,6 +486,13 @@ for (auto&& x : f | std::views::filter([](std::string s) { return s.size() > 0; 
 \end{colorblock}
 
 We rejected this option.
+\begin{note}
+Nevertheless, we came back to this option
+after much discussion of pros and cons
+in both LEWG and several additional meetings
+if a Coroutine Task Force formed by LEWG Chair
+specifically to build consensus.
+\end{note}
 
 \paragraph{Doing something clever for move-only types}
 
@@ -580,11 +582,12 @@ returned from the promise's \tcode{yield_value} function.
 
 However, the object denoted by a glvalue yield expression is guaranteed
 to live until the coroutine resumes.
-We can take advantage of that fact by storing only a pointer to in the promise,
+We can take advantage of that fact by
+storing only a pointer to the denoted object in the promise,
 if the result of dereferencing that pointer is convertible to the generator's
 reference type. We guarantee this is the case by providing a \tcode{yield_value}
-whose parameter type is
-\tcode{conditional_t<is_reference_v<Reference>, Reference, const Reference\&>}.
+whose parameter type is always a reference type
+(\tcode{conditional_t<is_reference_v<Reference>, Reference, const Reference\&>}).
 This forces any conversions to happen inside the coroutine itself,
 yielding a temporary glvalue that can later be dereferenced
 to an lvalue which is trivially \tcode{static_cast}ed to \tcode{Reference}
@@ -905,8 +908,10 @@ Ideally, generators would be able to recurse into other generators
 whose \tcode{yield_value} has the same parameter type
 even if all three template arguments to \tcode{generator} differ.
 
-Our implementation uses a base class to implement the non-allocation behaviors
-for \tcode{generator}'s promise so that generators with different allocator types
+Our implementation uses a base class
+to implement the non-allocation behaviors
+for \tcode{genera\-tor}'s promise type
+so that generators with different allocator types
 can yield each other.
 Doing so, however, requires that we partially erase
 the type of a \tcode{coroutine_handle} so we can resume it later
@@ -1154,7 +1159,7 @@ namespace std {
   class generator;
 
   template<class R, class V, class Allocator>
-  inline constexpr bool ranges::enable_view<generator<R, V, Allocator>> = true;
+  constexpr bool ranges::enable_view<generator<R, V, Allocator>> = true;
 }
 \end{codeblock}
 
@@ -1164,13 +1169,11 @@ namespace std {
 namespace std {
   template<class R, class V = void, class Allocator = void>
   class generator {
-    using @\exposid{value}@ =  // \expos
+    using @\exposid{value}@ =       // \expos
       conditional_t<is_void_v<V>, remove_cvref_t<R>, V>;
-    using @\exposid{reference}@ = // \expos
-      conditional_t<is_void_v<V>,
-        conditional_t<is_reference_v<R>, R, const R&>,
-        T>;
-    class @\exposid{iterator}@; // \expos
+    using @\exposid{reference}@ =   // \expos
+      conditional_t<is_void_v<V>, R&&, R>;
+    class @\exposid{iterator}@;     // \expos
 
   public:
     using yielded =
@@ -1723,26 +1726,24 @@ Initializes \tcode{\exposid{coroutine_}} with \tcode{coroutine}.
 
 \begin{thebibliography}{9}
     \bibitem[CppCoro]{CppCoro}
-    Lewis Baker
-    \emph{CppCoro: A library of C++ coroutine abstractions for the coroutines TS}\newline
+    Lewis Baker.
+    CppCoro: A library of C++ coroutine abstractions for the coroutines TS.
     \url{https://github.com/lewissbaker/cppcoro}
 
     \bibitem[Folly]{Folly}
-    Facebook
-    \emph{Folly: An open-source C++ library developed and used at Facebook}\newline
+    Facebook.
+    Folly: An open-source C++ library developed and used at Facebook.
     \url{https://github.com/facebook/folly}
 
-
     \bibitem[range]{range-v3}
-    Eric Niebler
-    \emph{range-v3 Range library for C++14/17/20}\newline
+    Eric Niebler.
+    range-v3 Range library for C++14/17/20.
     \url{https://github.com/ericniebler/range-v3}
 
     \bibitem[Implementation]{Implementation}
-    Casey Carter, Lewis Baker, Corentin Jabot
-    \emph{\tcode{std::generator} implementation}\newline
-    \url{https://godbolt.org/z/P371zhbqd}
-
+    Casey Carter, Lewis Baker, Corentin Jabot.
+    \tcode{std::generator} implementation.
+    \url{https://godbolt.org/z/qv9Yodhdx}
 \end{thebibliography}
 
 \end{document}

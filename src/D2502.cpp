@@ -219,9 +219,7 @@ namespace std {
     template <class _Rty, class _Vty>
     using _Gen_value_t = conditional_t<is_void_v<_Vty>, remove_cvref_t<_Rty>, _Vty>;
     template <class _Rty, class _Vty>
-    using _Gen_reference_t = conditional_t<is_void_v<_Vty>,
-        conditional_t<is_reference_v<_Rty>, _Rty, const _Rty&>, _Rty>;
-
+    using _Gen_reference_t = conditional_t<is_void_v<_Vty>, _Rty&&, _Rty>;
     template <class _Ref>
     using _Gen_yield_t = conditional_t<is_reference_v<_Ref>, _Ref, const _Ref&>;
 
@@ -254,7 +252,7 @@ namespace std {
         }
 
         // clang-format off
-        template <class _Rty, class _Alloc, class _Vty, class _Unused>
+        template <class _Rty, class _Vty, class _Alloc, class _Unused>
             requires same_as<_Gen_yield_t<_Gen_reference_t<_Rty, _Vty>>, _Yielded>
         [[nodiscard]] auto yield_value(
             ::std::ranges::elements_of<generator<_Rty, _Vty, _Alloc>&&, _Unused> _Elem) noexcept {
@@ -265,8 +263,7 @@ namespace std {
         // clang-format off
         template <::std::ranges::input_range _Rng, class _Alloc>
             requires convertible_to<::std::ranges::range_reference_t<_Rng>, _Yielded>
-        [[nodiscard]] auto yield_value(
-            ::std::ranges::elements_of<_Rng, _Alloc> _Elem) noexcept {
+        [[nodiscard]] auto yield_value(::std::ranges::elements_of<_Rng, _Alloc> _Elem) noexcept {
             // clang-format on
             using _Vty   = ::std::ranges::range_value_t<_Rng>;
             auto& _Range = _Elem.range;
@@ -552,7 +549,7 @@ namespace {
     // Also supports yielding any other range whose elements are convertible to
     // the current generator's elements.
 
-    std::generator<uint64_t> nested_sequences_example() {
+    std::generator<uint64_t, uint64_t> nested_sequences_example() {
         std::printf("yielding elements_of std::array\n");
 #if defined(__GNUC__) && !defined(__clang__)
         co_yield std::ranges::elements_of(std::array<const uint64_t, 5>{2, 4, 6, 8, 10}, {});
@@ -593,7 +590,7 @@ namespace {
         }
     };
 
-    std::generator<X, X> always_ref_example() {
+    std::generator<X> always_ref_example() {
         co_yield X{1};
         {
             X x{2};
@@ -646,7 +643,7 @@ namespace {
     }
 
     // value_type = std::string_view
-    // reference = std::string_view const&
+    // reference = std::string_view&&
     std::generator<std::string_view> string_views() {
         co_yield "foo";
         co_yield "bar";
@@ -680,7 +677,7 @@ namespace {
     template <std::ranges::range... Rs, std::size_t... Indices>
     std::generator<std::tuple<std::ranges::range_reference_t<Rs>...>,
         std::tuple<std::ranges::range_value_t<Rs>...>>
-        zip_impl(std::index_sequence<Indices...>, Rs... rs) {
+    zip_impl(std::index_sequence<Indices...>, Rs... rs) {
         std::tuple<std::ranges::iterator_t<Rs>...> its{std::ranges::begin(rs)...};
         std::tuple<std::ranges::sentinel_t<Rs>...> itEnds{std::ranges::end(rs)...};
         while (((std::get<Indices>(its) != std::get<Indices>(itEnds)) && ...)) {
@@ -692,7 +689,7 @@ namespace {
     template <std::ranges::range... Rs>
     std::generator<std::tuple<std::ranges::range_reference_t<Rs>...>,
         std::tuple<std::ranges::range_value_t<Rs>...>>
-        zip(Rs&&... rs) {
+    zip(Rs&&... rs) {
         return zip_impl(std::index_sequence_for<Rs...>{}, std::views::all(std::forward<Rs>(rs))...);
     }
 
