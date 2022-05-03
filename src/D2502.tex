@@ -74,6 +74,10 @@ Changes made at the request of LWG small group review except those annotated
   (primarily ``generator instance'' becomes ``generator object'').
 \item The notional stack of coroutines associated with a generator object
   is now a notional stack of coroutine handles.
+\item Simplify the specification of \tcode{generator}'s assignment operator:
+  it now takes a \code{generator} argument by-value and swaps coroutine handles
+  between \tcode{*this} and the argument. (Usage should be equivalent to the
+  prior formulation.)
 \end{itemize}
 
 \subsection{P2502R1}
@@ -1202,8 +1206,7 @@ namespace std {
 
     ~generator();
 
-    generator& operator=(const generator&) = delete;
-    generator& operator=(generator&& other) noexcept;
+    generator& operator=(generator other) noexcept;
 
     @\exposid{iterator}@ begin();
     default_sentinel_t end() const noexcept;
@@ -1287,17 +1290,13 @@ Equivalent to:
 \end{itemdescr}
 
 \begin{itemdecl}
-generator& operator=(generator&& that) noexcept;
+generator& operator=(generator that) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
 \effects
 Equivalent to:
-\begin{codeblock}
-    if (auto old = exchange(@\exposid{coroutine_}@, exchange(that.@\exposid{coroutine_}@, {}))) {
-      old.destroy();
-    }
-\end{codeblock}
+\tcode{swap(\exposid{coroutine_}, that.\exposid{coroutine_})}.
 
 \returns
 \tcode{*this}.
