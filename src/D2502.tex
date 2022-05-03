@@ -70,8 +70,10 @@ Changes made at the request of LWG small group review except those annotated
   into a single bulleted list.
 \item Express the type requirement on \tcode{generator}'s \tcode{Allocator}
   template parameter as a precondition.
-\item Replace all occurrences of ``instance'' in the wording
+\item Replace all occurrences (all instances?) of ``instance'' in the wording
   (primarily ``generator instance'' becomes ``generator object'').
+\item The notional stack of coroutines associated with a generator object
+  is now a notional stack of coroutine handles.
 \end{itemize}
 
 \subsection{P2502R1}
@@ -1319,8 +1321,8 @@ Equivalent to:
 
 \remarks
 This function pushes \exposid{coroutine_}
-onto the \tcode{generator}'s empty stack
-of associated coroutines.
+onto the \tcode{generator}'s stack
+of associated coroutine handles.
 
 \begin{note}
     A program that calls \tcode{begin}
@@ -1414,15 +1416,18 @@ auto final_suspend() noexcept;
 
 \begin{itemdescr}
 \expects
-The coroutine whose promise object is \tcode{*this} is at the top of the stack
-of associated coroutines of some \tcode{generator} object \tcode{x}.
+A handle denoting the coroutine whose promise object is \tcode{*this}
+is at the top of the stack of associated coroutine handles
+of some \tcode{generator} object \tcode{x}.
 
 \returns
 An awaitable object of unspecified type
 whose member \tcode{await_suspend}
-removes the coroutine whose promise is \tcode{*this}
-from the top of \tcode{x}'s stack of associated coroutines,
-and resumes execution of the new top-of-stack coroutine, if any.
+removes the coroutine handle
+whose coroutine's promise is \tcode{*this}
+from the top of \tcode{x}'s stack of associated coroutine handles,
+and resumes execution of the coroutine denoted by
+the new top-of-stack coroutine handle, if any.
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1477,15 +1482,16 @@ An object of an unspecified awaitable type~([expr.await])
 which takes ownership of the generator \tcode{r},
 whose member \tcode{await_suspend}
 pushes \tcode{r.\exposid{coroutine_}} atop the stack of
-coroutines associated with \tcode{x}
-before resuming execution of \tcode{r.\exposid{coroutine_}}, and
+coroutine handles associated with \tcode{x}
+before resuming execution of the coroutine denoted
+by \tcode{r.\exposid{coroutine_}}, and
 whose member \tcode{await_resume} rethrows any exception captured by
 a call to \tcode{r.\exposid{coroutine_}.promise()}'s member
 \tcode{unhandled_exception}.
 
 \begin{note}
 Variables with automatic storage duration in the scope of
-the coroutine represented by \tcode{r.\exposid{coroutine_}} are destroyed
+the coroutine denoted by \tcode{r.\exposid{coroutine_}} are destroyed
 before variables with automatic storage duration in the scope of
 the coroutine whose promise object is \tcode{*this}.
 \end{note}
@@ -1518,17 +1524,20 @@ void unhandled_exception();
 
 \begin{itemdescr}
 \expects
-The coroutine whose promise object is \tcode{*this} is at the top of the stack
-of associated coroutines of some \tcode{generator} object \tcode{x}.
+A handle denoting the coroutine whose promise object is \tcode{*this}
+is at the top of the stack of associated coroutine handles
+of some \tcode{generator} object \tcode{x}.
 
 \effects
-If the coroutine whose promise object is \tcode{*this}
+If the handle denoting the coroutine
+whose promise object is \tcode{*this}
 is the sole element of \tcode{x}'s stack of associated coroutines,
 equivalent to: \tcode{throw}.
 Otherwise, stores the result of \tcode{current_exception()}
 where it can later be retrieved and rethrown by the \tcode{await_resume}
 member of the awaitable object returned from the \tcode{yield_value} call
-that pushed this coroutine onto \tcode{x}'s stack of associated coroutines.
+that pushed this coroutine handle onto
+\tcode{x}'s stack of associated coroutine handles.
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1674,9 +1683,9 @@ Equivalent to:
 \tcode{\exposid{coroutine_}.done()} is \tcode{false}, and \exposid{coroutine_}
 
 Let \tcode{p} be the promise object of the coroutine
-at the top of the stack of coroutines associated with
-the \tcode{generator} whose stack of associated coroutines
-includes \exposid{coroutine_}.
+denoted by the handle at the top of
+the stack of coroutine handles associated with
+the \tcode{generator} whose stack includes \exposid{coroutine_}.
 
 \effects
 Equivalent to:
@@ -1694,9 +1703,9 @@ Equivalent to:
 \tcode{\exposid{coroutine_}.done()} is \tcode{false}.
 
 \effects
-Resumes the coroutine at the top of the stack of coroutines associated with
-the \tcode{generator} whose stack of associated coroutines
-includes \exposid{coroutine_}.
+Resumes the coroutine denoted by the handle
+at the top of the stack of coroutine handles associated with
+the \tcode{generator} whose stack includes \exposid{coroutine_}.
 
 \returns
 \tcode{return *this};
