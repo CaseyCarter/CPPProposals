@@ -34,6 +34,46 @@ their unpublished D2168R4 for continuity of design.
 
 \section{Revisions}
 
+\subsection{P2502R2}
+Changes made at the request of LWG small group review except those annotated
+[CMC].
+\begin{itemize}
+\item [CMC] Change directions to the Editor from blue "Drafting Note"s to
+  magenta "Editor's note" in square brackets. Hopefully this makes them
+  distinctive so as not to be confused with the actual wording changes.
+\item Changes to wording for \tcode{elements_of}:
+  \begin{itemize}
+    \item Don't present as a subclause that holds a single subclause; flatten.
+    \item [CMC] Don't reuse the same input range in the example, which could
+      result in undefined behavior with some input ranges. Instead add a
+      \tcode{bool} template parameter that selects between the two different
+      uses with \tcode{if constexpr}.
+    \item [CMC] Annotate member \tcode{range} with \tcode{[[no_unique_address]]}
+      because a range type \emph{could} be empty even if they typically are not.
+  \end{itemize}
+\item Editorial clarifications in [coroutine.generator.overview]:
+  \begin{itemize}
+    \item Change ``it was returned from'' to ``from which it was returned.''
+    \item Strike the sentence that redundantly describes how \tcode{co_yield}
+      works.
+    \item Change ``element of the generator'' to ``element of the sequence.''
+    \item Rename the \tcode{iota} generator in the example to \tcode{ints}
+      to avoid confusion with \tcode{std::iota}, \tcode{std::ranges::iota_view},
+      and \tcode{std::ranges::views::iota}.
+  \end{itemize}
+\item \tcode{<generator>} no longer explicitly includes
+  \tcode{<coroutine>} and \tcode{<ranges>}.
+\item Rename \tcode{generator}'s first template parameter
+  from \tcode{R} to \tcode{Ref} to avoid confusion with range parameters which
+  are usually \tcode{R}.
+\item Unify all "Mandates" conditions on \tcode{generator}'s template parameters
+  into a single bulleted list.
+\item Express the type requirement on \tcode{generator}'s \tcode{Allocator}
+  template parameter as a precondition.
+\item Replace all occurrences of ``instance'' in the wording
+  (primarily ``generator instance'' becomes ``generator object'').
+\end{itemize}
+
 \subsection{P2502R1}
 \begin{itemize}
 \item The type \tcode{generator::yielded}
@@ -43,14 +83,8 @@ their unpublished D2168R4 for continuity of design.
   ordered properly with the other wording.
 \item Coroutines for \tcode{generator<T\&\&>} can now yield lvalues;
   the generated element is an xvalue denoting a copy of the lvalue.
-  This saves folks the trouble of writing
-  \begin{codeblock}
-  co_yield auto(lvalue);
-  \end{codeblock}
-  instead of
-  \begin{codeblock}
-  co_yield lvalue;
-  \end{codeblock}
+  This saves folks the trouble of writing \tcode{co_yield auto(lval\-ue)}
+  instead of \tcode{co_yield lvalue}.
 \item Reorder \tcode{generator}'s template parameters
   (again, for the last last time).
   Coroutine Task Force discussions convinced all participants
@@ -824,7 +858,7 @@ on the allocator type. Details for this interface are found in \paper{P1681R0}.
 \end{colorblock}
 
 The proposed interface requires that, if an allocator is provided, it is the second argument to the coroutine function,
-immediately preceded by an instance of \tcode{std::allocator_arg_t}.
+immediately preceded by an argument of type \tcode{std::allocator_arg_t}.
 This approach is necessary to distinguish the allocator desired to allocate the coroutine state from allocators whose purpose is to be used in the body of the coroutine function.
 The required argument order might be a limitation if any other argument is required to be the first. However, we cannot think of any scenario where that would be the case.
 
@@ -1002,18 +1036,12 @@ That being said, we observe:
 
 The code for these benchmarks, as well as more detailed results, can be found on \href{https://github.com/cor3ntin/coro_benchmark}{Github}.
 
-\newenvironment{draftnote}
-    {\color{blue} Drafting Note:}
-    {}
-
 \newpage
 \section{Wording}
 
-\begin{draftnote}
-Wording is relative to Working Draft N4901 \cite{N4901}. \\
+\ednote{Wording is relative to Working Draft N4901 \cite{N4901}. \\
 Insert in lexicographical order in [version.syn]
-(updating \tcode{YYYYXXL} to the date of merge):
-\end{draftnote}
+(updating \tcode{YYYYXXL} to the date of merge):}
 
 \begin{addedblock}
 \begin{codeblock}
@@ -1021,9 +1049,7 @@ Insert in lexicographical order in [version.syn]
 \end{codeblock}
 \end{addedblock}
 
-\begin{draftnote}
-Modify [ranges.general] as follows:
-\end{draftnote}
+\ednote{Modify [ranges.general] as follows:}
 
 \rSec2[ranges.general]{General}
 This Clause describes components for dealing with ranges of elements.
@@ -1032,16 +1058,12 @@ The following subclauses describe range and view requirements, and
 components for range primitives \added{and range generators}
 as summarized in Table [tab:range.summary].
 
-\begin{draftnote}
-Add a new row at the end of [tab:range.summary] ``Range generators''
+\ednote{Add a new row at the end of [tab:range.summary] ``Range generators''
 with header \tcode{<generator>} referring to
-the new subclause [coroutine.generator] added below.
-\end{draftnote}
+the new subclause [coroutine.generator] added below.}
 
-\begin{draftnote}
-Add the declaration of \tcode{ranges::elements_of}
-to the \tcode{<ranges>} synopsis:
-\end{draftnote}
+\ednote{Add the declaration of \tcode{ranges::elements_of}
+to the \tcode{<ranges>} synopsis:}
 
 \rSec2[ranges.syn]{Header \tcode{<ranges>} synopsis}
 
@@ -1071,15 +1093,11 @@ namespace std::ranges {
 }
 \end{codeblock}
 
-\begin{draftnote}
-Insert the following new subclause immediately after [range.dangling]:
-\end{draftnote}
+\ednote{Insert the following new subclause immediately after [range.dangling]:}
 
 \begin{addedblock}
 
 \rSec2[ranges.elementsof]{class template \tcode{elements_of}}
-
-\rSec3[ranges.elementsof.overview]{Overview}
 
 Specializations of \tcode{elements_of} encapsulate a range and
 act as a tag in overload sets to disambiguate
@@ -1088,9 +1106,12 @@ rather than a single value.
 
 \begin{example}
     \begin{codeblock}
+        template <bool YieldElements>
         std::generator<any> f(std::ranges::input_range auto&& rng) {
-            co_yield rng; // yield rng as a single value
-            co_yield std::ranges::elements_of(rng); // yield each element of rng
+            if constexpr (YieldElements)
+                co_yield std::ranges::elements_of(rng); // yield each element of rng
+            else
+                co_yield rng; // yield rng as a single value
         }
     \end{codeblock}
 \end{example}
@@ -1099,7 +1120,7 @@ rather than a single value.
 namespace std::ranges {
   template<range R, class Allocator = allocator<byte>>
   struct elements_of {
-    R range;
+    [[no_unique_address]] R range;
     [[no_unique_address]] Allocator allocator{};
   };
 
@@ -1110,9 +1131,7 @@ namespace std::ranges {
 
 \end{addedblock}
 
-\begin{draftnote}
-Add the following subclause to the end of [ranges]:
-\end{draftnote}
+\ednote{Add the following subclause to the end of [ranges]:}
 
 \begin{addedblock}
 \rSec2[coroutine.generator]{Range Generators}
@@ -1122,26 +1141,24 @@ Add the following subclause to the end of [ranges]:
 by the evaluation of a coroutine.
 
 A \tcode{generator} generates a sequence of elements by
-repeatedly resuming the coroutine it was returned from.
-When the coroutine is resumed, it is executed until it reaches
-either a \tcode{co_yield} statement or the end of the coroutine.
+repeatedly resuming the coroutine from which it was returned.
 Elements of the sequence are produced by the coroutine
 each time a \tcode{co_yield} statement is evaluated.
 When the \tcode{co_yield} statement is of the form
 \tcode{co_yield elements_of(rng)},
 each element of the range \tcode{rng}
 is successively produced
-as an element of the generator.
+as an element of the sequence.
 
 \begin{example}
     \begin{codeblock}
-        std::generator<int> iota(int start = 0) {
+        std::generator<int> ints(int start = 0) {
             while (true)
                 co_yield start++;
         }
 
         void f() {
-            for (auto i : iota() | std::views::take(3))
+            for (auto i : ints() | std::views::take(3))
                 std::cout << i << ' '; // prints 0 1 2
         }
     \end{codeblock}
@@ -1150,16 +1167,13 @@ as an element of the generator.
 \rSec3[generator.syn]{Header \tcode{<generator>} synopsis}
 
 \begin{codeblock}
-#include <coroutine>
-#include <ranges>
-
 namespace std {
   // [coroutine.generator.class], class template \tcode{generator}
-  template<class R, class V = void, class Allocator = void>
+  template<class Ref, class V = void, class Allocator = void>
   class generator;
 
-  template<class R, class V, class Allocator>
-  constexpr bool ranges::enable_view<generator<R, V, Allocator>> = true;
+  template<class Ref, class V, class Allocator>
+  constexpr bool ranges::enable_view<generator<Ref, V, Allocator>> = true;
 }
 \end{codeblock}
 
@@ -1167,12 +1181,12 @@ namespace std {
 
 \begin{codeblock}
 namespace std {
-  template<class R, class V = void, class Allocator = void>
+  template<class Ref, class V = void, class Allocator = void>
   class generator {
     using @\exposid{value}@ =       // \expos
-      conditional_t<is_void_v<V>, remove_cvref_t<R>, V>;
+      conditional_t<is_void_v<V>, remove_cvref_t<Ref>, V>;
     using @\exposid{reference}@ =   // \expos
-      conditional_t<is_void_v<V>, R&&, R>;
+      conditional_t<is_void_v<V>, Ref&&, Ref>;
     class @\exposid{iterator}@;     // \expos
 
   public:
@@ -1200,16 +1214,14 @@ namespace std {
 }
 \end{codeblock}
 
-\mandates \exposid{value} is a cv-unqualified object type.
+\mandates
+\begin{itemize}
+\item \exposid{value} is a cv-unqualified object type.
 
-\mandates \exposid{reference} is either a reference type, or
+\item \exposid{reference} is either a reference type, or
 a cv-unqualified object type that models \libconcept{copy_constructible}.
 
-\tcode{Allocator} shall be \tcode{void}, or
-shall meet the \tcode{Cpp17Allocator} requirements.
-
-\mandates
-Let \tcode{RRef} denote \tcode{remove_reference_t<\exposid{reference}>\&\&}
+\item Let \tcode{RRef} denote \tcode{remove_reference_t<\exposid{reference}>\&\&}
 if \exposid{reference} is a reference type,
 or \exposid{reference} otherwise.
 Each of:
@@ -1223,18 +1235,22 @@ is modeled.
 These requirements ensure the exposition-only \exposid{iterator} type
 can model \tcode{indirectly_readable} and thus \tcode{input_iterator}.
 \end{note}
+\end{itemize}
+
+\preconditions
+\tcode{Allocator} is \tcode{void} or
+meets the \tcode{Cpp17Allocator} requirements.
 
 Specializations of \tcode{generator} model \tcode{view} and \tcode{input_range}.
 
 The behavior of a program that adds a specialization
 for \tcode{generator} is undefined.
 
-An instance of \tcode{generator} has
-an associated stack of coroutines,
+An \tcode{generator} object has
+an associated stack of coroutine handles,
 which is initially empty.
-A coroutine is associated with
-at most one \tcode{generator} instance
-at a given time.
+A coroutine handle is associated with
+at most one \tcode{generator} object at a time.
 
 \rSec3[generator.members]{Members}
 
@@ -1326,8 +1342,8 @@ default_sentinel_t end() const noexcept;
 \rSec3[coroutine.generator.promise]{class \tcode{generator::promise_type}}
 
 \begin{codeblock}
-template<class R, class V, class Allocator>
-class generator<R, V, Allocator>::promise_type {
+template<class Ref, class V, class Allocator>
+class generator<Ref, V, Allocator>::promise_type {
   friend generator;
 
   add_pointer_t<yielded> @\exposid{value_}@ = nullptr; // \expos
@@ -1399,7 +1415,7 @@ auto final_suspend() noexcept;
 \begin{itemdescr}
 \expects
 The coroutine whose promise object is \tcode{*this} is at the top of the stack
-of associated coroutines of some \tcode{generator} instance \tcode{x}.
+of associated coroutines of some \tcode{generator} object \tcode{x}.
 
 \returns
 An awaitable object of unspecified type
@@ -1451,7 +1467,7 @@ template<class T2, class V2, class Alloc2, class Unused>
 \begin{itemdescr}
 \expects
 The coroutine whose promise object is \tcode{*this} is at the top of the stack
-of associated coroutines of some \tcode{generator} instance \tcode{x}.
+of associated coroutines of some \tcode{generator} object \tcode{x}.
 
 Let \tcode{r} be an lvalue that denotes
 the same object to which \tcode{g.range} refers.
@@ -1503,7 +1519,7 @@ void unhandled_exception();
 \begin{itemdescr}
 \expects
 The coroutine whose promise object is \tcode{*this} is at the top of the stack
-of associated coroutines of some \tcode{generator} instance \tcode{x}.
+of associated coroutines of some \tcode{generator} object \tcode{x}.
 
 \effects
 If the coroutine whose promise object is \tcode{*this}
@@ -1603,8 +1619,8 @@ using an allocator equivalent to the one that was used to allocate it.
 \rSec3[coroutine.generator.iterator]{Class template \tcode{generator::\exposid{iterator}}}
 
 \begin{codeblock}
-template<class R, class V, class Allocator>
-class generator<R, V, Allocator>::@\exposid{iterator}@ {
+template<class Ref, class V, class Allocator>
+class generator<Ref, V, Allocator>::@\exposid{iterator}@ {
 public:
     using value_type = @\exposid{value}@;
     using difference_type = ptrdiff_t;
