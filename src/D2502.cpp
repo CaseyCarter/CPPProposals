@@ -242,11 +242,12 @@ namespace std {
         }
 
         // clang-format off
-        template <class _Uty = remove_reference_t<_Yielded>>
-            requires (is_rvalue_reference_v<_Yielded> &&
-                constructible_from<remove_cvref_t<_Yielded>, const _Uty&>)
-        [[nodiscard]] auto yield_value(type_identity_t<const _Uty&> _Val)
-            noexcept(is_nothrow_constructible_v<remove_cvref_t<_Yielded>, const _Uty&>) {
+        [[nodiscard]] auto yield_value(const remove_reference_t<_Yielded>& _Val)
+            noexcept(is_nothrow_constructible_v<remove_cvref_t<_Yielded>,
+                const remove_reference_t<_Yielded>&>)
+            requires is_rvalue_reference_v<_Yielded>
+                && constructible_from<remove_cvref_t<_Yielded>, const remove_reference_t<_Yielded>&>
+        {
             // clang-format on
             return _Element_awaiter{_Val};
         }

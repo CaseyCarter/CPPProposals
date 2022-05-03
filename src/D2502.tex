@@ -75,9 +75,22 @@ Changes made at the request of LWG small group review except those annotated
 \item The notional stack of coroutines associated with a generator object
   is now a notional stack of coroutine handles.
 \item Simplify the specification of \tcode{generator}'s assignment operator:
-  it now takes a \code{generator} argument by-value and swaps coroutine handles
+  it now takes a \tcode{generator} argument by-value and swaps coroutine handles
   between \tcode{*this} and the argument. (Usage should be equivalent to the
   prior formulation.)
+\item "Initial suspend point" has no hyphens, and
+  is defined in [dcl.fct.def.coroutine].
+\item We don't need to emphasize that the stack is empty in \tcode{begin}.
+\item Corrected spelling of \tcode{__STDCPP_DEFAULT_NEW_ALIGNMENT__}.
+\item Rename template parameter \tcode{Alloc2} of \tcode{promise}'s
+  \tcode{yield_value(elements_of)} member function template to \tcode{Alloc}.
+\item \tcode{get_return_object} returns \tcode{generator(...)} instead of
+  \tcode{generator\{...\}}.
+\item Massively simplify and un-template the \tcode{yield_value} overload that
+  takes \tcode{const remove_reference_t<yielded>\&}. (We don't need to
+  artificially template to ensure it's distinct from
+  \tcode{yield_value(yielded)}, the added constraints make it distinct
+  even when \tcode{yielded} is a \tcode{const} lvalue reference.)
 \end{itemize}
 
 \subsection{P2502R1}
@@ -1309,7 +1322,7 @@ Equivalent to:
 \begin{itemdescr}
 \expects
 \tcode{\exposid{coroutine_}} refers to a coroutine
-suspended at its initial suspend-point.
+suspended at its initial suspend point~([dcl.fct.def.coroutine]).
 
 \effects
 Equivalent to:
@@ -1358,18 +1371,17 @@ public:
 
   suspend_always yield_value(yielded value) noexcept;
 
-  template<class Y = remove_reference_t<yielded>>
+  auto yield_value(const remove_reference_t<yielded>& lvalue)
     requires is_rvalue_reference_v<yielded> &&
-      constructible_from<remove_cvref_t<yielded>, const Y&>
-        auto yield_value(const type_identity_t<Y>& lvalue);
+      constructible_from<remove_cvref_t<yielded>, const remove_reference_t<yielded>&>;
 
   template<class R2, class V2, class Alloc2, class Unused>
     requires same_as<typename generator<T2, V2, Alloc2>::yielded, yielded>
       auto yield_value(ranges::elements_of<generator<T2, V2, Alloc2>&&, Unused> g) noexcept;
 
-  template<ranges::input_range Rng, class Alloc2>
+  template<ranges::input_range Rng, class Alloc>
     requires convertible_to<ranges::range_reference_t<Rng>, yielded>
-      auto yield_value(ranges::elements_of<Rng, Alloc2> r) noexcept;
+      auto yield_value(ranges::elements_of<Rng, Alloc> r) noexcept;
 
   void await_transform() = delete;
 
@@ -1398,7 +1410,7 @@ generator get_return_object() noexcept;
 
 \begin{itemdescr}
 \returns
-\tcode{generator\{coroutine_handle<promise_type>::from_promise(*this)\}}.
+\tcode{generator(coroutine_handle<promise_type>::from_promise(*this))}.
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1422,11 +1434,14 @@ of some \tcode{generator} object \tcode{x}.
 \returns
 An awaitable object of unspecified type
 whose member \tcode{await_suspend}
-removes the coroutine handle
+pops the coroutine handle
 whose coroutine's promise is \tcode{*this}
 from the top of \tcode{x}'s stack of associated coroutine handles,
 and resumes execution of the coroutine denoted by
 the new top-of-stack coroutine handle, if any.
+If there is no new top-of-stack handle,
+control flow returns to the
+current coroutine caller or resumer~([dcl.fct.def.coroutine]).
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1443,16 +1458,15 @@ Equivalent to:
 \end{itemdescr}
 
 \begin{itemdecl}
-template<class Y = remove_reference_t<yielded>>
-  auto yield_value(const type_identity_t<Y>& lvalue)
+  auto yield_value(const remove_reference_t<yielded>& lvalue)
     requires is_rvalue_reference_v<yielded> &&
-      constructible_from<remove_cvref_t<yielded>, const Y&>;
+      constructible_from<remove_cvref_t<yielded>, const remove_reference_t<yielded>&>;
 \end{itemdecl}
 
 \begin{itemdescr}
 \returns
 An object of an unspecified awaitable type~([expr.await])
-that stores an object of type \tcode{remove_cv_t<Y>}
+that stores an object of type \tcode{remove_cvref_t<yielded>}
 direct-non-list-initialized with \tcode{lvalue},
 whose member functions arrange for
 \tcode{\exposid{value_}} to point at that stored object
@@ -1497,17 +1511,17 @@ the coroutine whose promise object is \tcode{*this}.
 \end{itemdescr}
 
 \begin{itemdecl}
-template<ranges::input_range Rng, class Alloc2>
+template<ranges::input_range Rng, class Alloc>
   requires convertible_to<ranges::range_reference_t<Rng>, yielded>
-    auto yield_value(ranges::elements_of<Rng, Alloc2> r) noexcept;
+    auto yield_value(ranges::elements_of<Rng, Alloc> r) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
 \effects
 Equivalent to:
 \begin{codeblock}
-    auto nested = [](allocator_arg_t, Alloc2, auto* range_ptr)
-      -> generator<yielded, ranges::range_value_t<Rng>, Alloc2> {
+    auto nested = [](allocator_arg_t, Alloc, auto* range_ptr)
+      -> generator<yielded, ranges::range_value_t<Rng>, Alloc> {
         for (auto&& e : *range_ptr)
           co_yield static_cast<yielded>(std::forward<decltype(e)>(e));
       };
@@ -1550,7 +1564,7 @@ if \tcode{Allocator} denotes \tcode{void},
 or \tcode{Allocator} otherwise.
 Let \tcode{BAlloc} be \tcode{allocator_traits<A>::template rebind_alloc<U>}
 where \tcode{U} denotes an unspecified type whose size and alignment
-are both \tcode{_STDCPP_DEFAULT_NEW_ALIGNMENT__}.
+are both \tcode{__STDCPP_DEFAULT_NEW_ALIGNMENT__}.
 
 \effects
 Initializes an allocator of type \tcode{BAlloc} with \tcode{A\{\}},
@@ -1586,7 +1600,7 @@ if \tcode{Allocator} denotes \tcode{void},
 or \tcode{Allocator} otherwise.
 Let \tcode{BAlloc} be \tcode{allocator_traits<A>::template rebind_alloc<U>}
 where \tcode{U} denotes an unspecified type whose size and alignment
-are both \tcode{_STDCPP_DEFAULT_NEW_ALIGNMENT__}.
+are both \tcode{__STDCPP_DEFAULT_NEW_ALIGNMENT__}.
 
 \effects
 Initializes an allocator of type \tcode{BAlloc}
