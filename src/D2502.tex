@@ -91,6 +91,12 @@ Changes made at the request of LWG small group review except those annotated
   artificially template to ensure it's distinct from
   \tcode{yield_value(yielded)}, the added constraints make it distinct
   even when \tcode{yielded} is a \tcode{const} lvalue reference.)
+\item Fix precondition on \tcode{\exposid{iterator}::operator*()} and
+  \tcode{\exposid{iterator}::operator++()}.
+\item Remove precondition from \tcode{\exposid{iterator}::operator++(int)}
+  which is extraneous thanks to "Effects: equivalent to".
+\item Also use "Effects: equivalent to" for \tcode{operator==} to avoid explicit
+  preconditions.
 \end{itemize}
 
 \subsection{P2502R1}
@@ -1693,7 +1699,9 @@ Equivalent to:
 
 \begin{itemdescr}
 \expects
-\tcode{\exposid{coroutine_}.done()} is \tcode{false}, and \exposid{coroutine_}
+\tcode{\exposid{coroutine_}.done()} is \tcode{false}, and
+\exposid{coroutine_} is in the stack of coroutine handles associated with
+some \tcode{generator}.
 
 Let \tcode{p} be the promise object of the coroutine
 denoted by the handle at the top of
@@ -1713,7 +1721,9 @@ Equivalent to:
 
 \begin{itemdescr}
 \expects
-\tcode{\exposid{coroutine_}.done()} is \tcode{false}.
+\tcode{\exposid{coroutine_}.done()} is \tcode{false}, and
+\exposid{coroutine_} is in the stack of coroutine handles associated with
+some \tcode{generator}.
 
 \effects
 Resumes the coroutine denoted by the handle
@@ -1729,9 +1739,6 @@ void operator++(int);
 \end{itemdecl}
 
 \begin{itemdescr}
-\expects
-\tcode{\exposid{coroutine_}.done()} is \tcode{false}.
-
 \effects
 Equivalent to: \tcode{++*this}.
 \end{itemdescr}
@@ -1741,8 +1748,8 @@ bool operator==(default_sentinel_t) const noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
-\returns
-\tcode{\exposid{coroutine_}.done()}.
+\effects
+Equivalent to: \tcode{return \exposid{coroutine_}.done();}
 \end{itemdescr}
 
 \begin{itemdecl}
