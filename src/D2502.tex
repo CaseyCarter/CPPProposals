@@ -95,6 +95,15 @@ Changes made at the request of LWG small group review except those annotated
   artificially template to ensure it's distinct from
   \tcode{yield_value(yielded)}, the added constraints make it distinct
   even when \tcode{yielded} is a \tcode{const} lvalue reference.)
+\item In the description of the \tcode{yield_value}
+  overload that takes \tcode{elements_of<generator<...},
+  remove the metasyntactic variable \tcode{r}
+  that refers to "an lvalue denoting the \tcode{generator}
+  referenced by \tcode{g.range}".
+  \tcode{g.range} is already such an lvalue, just use it directly.
+  Similarly use \tcode{r.range} directly in the specification of
+  the \tcode{yield_value} overload that takes \tcode{elements_of<Range}
+  instead of defining \tcode{rng} as an identical lvalue.
 \item Fix precondition on \tcode{\exposid{iterator}::operator*()} and
   \tcode{\exposid{iterator}::operator++()}.
 \item Remove precondition from \tcode{\exposid{iterator}::operator++(int)}
@@ -1068,7 +1077,7 @@ The code for these benchmarks, as well as more detailed results, can be found on
 \newpage
 \section{Wording}
 
-\ednote{Wording is relative to Working Draft N4901 \cite{N4901}. \\
+\ednote{Wording is relative to Working Draft N4910 \cite{N4910}. \\
 Insert in lexicographical order in [version.syn]
 (updating \tcode{YYYYXXL} to the date of merge):}
 
@@ -1498,26 +1507,23 @@ A handle for the coroutine whose promise object is \tcode{*this}
 is at the top of the stack of associated coroutine handles
 of some \tcode{generator} object \tcode{x}.
 
-Let \tcode{r} be an lvalue that denotes
-the same object to which \tcode{g.range} refers.
-
 \returns
 An object of an unspecified awaitable type~([expr.await])
-which takes ownership of the generator \tcode{r},
+which takes ownership of the generator \tcode{g.range},
 whose member \tcode{await_suspend}
-pushes \tcode{r.\exposid{coroutine_}} atop the stack of
+pushes \tcode{g.range.\exposid{coroutine_}} atop the stack of
 coroutine handles associated with \tcode{x}
 before resuming execution of the coroutine denoted
-by \tcode{r.\exposid{coroutine_}}, and
+by \tcode{g.range.\exposid{coroutine_}}, and
 whose member \tcode{await_resume} rethrows any exception captured by
-a call to \tcode{r.\exposid{coroutine_}.promise()}'s member
+a call to \tcode{g.range.\exposid{coroutine_}.promise()}'s member
 \tcode{unhandled_exception}.
 
 \begin{note}
 Variables with automatic storage duration in the scope of
-the coroutine denoted by \tcode{r.\exposid{coroutine_}} are destroyed
-before variables with automatic storage duration in the scope of
-the coroutine whose promise object is \tcode{*this}.
+the coroutine denoted by \tcode{g.range.\exposid{coroutine_}}
+are destroyed before variables with automatic storage duration
+in the scope of the coroutine whose promise object is \tcode{*this}.
 \end{note}
 \end{itemdescr}
 
@@ -1536,9 +1542,8 @@ Equivalent to:
         for (auto&& e : *range_ptr)
           co_yield static_cast<yielded>(std::forward<decltype(e)>(e));
       };
-    auto& rng = r.range;
     return yield_value(ranges::elements_of(nested(
-      allocator_arg, r.allocator, addressof(rng))));
+      allocator_arg, r.allocator, addressof(r.range))));
 \end{codeblock}
 \end{itemdescr}
 
