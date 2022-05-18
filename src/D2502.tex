@@ -34,6 +34,10 @@ their unpublished D2168R4 for continuity of design.
 
 \section{Revisions}
 
+%% TODO:
+%% * Tomasz's request
+%% * Update implementation
+
 \subsection{P2502R2}
 Changes made at the request of LWG small group review except those annotated
 [CMC].
@@ -1490,8 +1494,9 @@ template<class T2, class V2, class Alloc2, class Unused>
 
 \begin{itemdescr}
 \expects
-The coroutine whose promise object is \tcode{*this} is at the top of the stack
-of associated coroutines of some \tcode{generator} object \tcode{x}.
+A handle for the coroutine whose promise object is \tcode{*this}
+is at the top of the stack of associated coroutine handles
+of some \tcode{generator} object \tcode{x}.
 
 Let \tcode{r} be an lvalue that denotes
 the same object to which \tcode{g.range} refers.
