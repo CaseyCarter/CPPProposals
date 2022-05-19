@@ -115,6 +115,8 @@ Changes made at the request of LWG small group review except those annotated
   of class-member \tcode{operator new} and \tcode{operator delete};
   class-member \tcode{operator new} and \tcode{operator delete}
   are \tcode{static} members regardless.
+\item Merge the specifications of the \tcode{operator new} overloads
+  into a single specification.
 \item Fix precondition on \tcode{\exposid{iterator}::operator*()} and
   \tcode{\exposid{iterator}::operator++()}.
 \item Remove precondition from \tcode{\exposid{iterator}::operator++(int)}
@@ -1584,35 +1586,7 @@ that pushed this coroutine handle onto
 \begin{itemdecl}
 void* operator new(size_t size)
   requires same_as<Allocator, void> || default_initializable<Allocator>;
-\end{itemdecl}
 
-\begin{itemdescr}
-Let \tcode{A} be \tcode{allocator<void>}
-if \tcode{Allocator} denotes \tcode{void},
-or \tcode{Allocator} otherwise.
-Let \tcode{BAlloc} be \tcode{allocator_traits<A>::template rebind_alloc<U>}
-where \tcode{U} denotes an unspecified type whose size and alignment
-are both \tcode{__STDCPP_DEFAULT_NEW_ALIGNMENT__}.
-
-\effects
-Initializes an allocator of type \tcode{BAlloc} with \tcode{A()},
-and uses that object to allocate the smallest number of blocks that
-provide sufficient storage for:
-\begin{itemize}
-\item a coroutine state of size \tcode{size},
-\item if \tcode{allocator_traits<BAlloc>::is_always_equal::value} is \tcode{false},
-space to store a copy of the allocator, and
-\item if \tcode{Allocator} denotes \tcode{void},
-any additional state necessary to ensure that
-\tcode{operator delete} can later deallocate this memory block
-with an allocator equal to the allocator used here.
-\end{itemize}
-
-\returns
-A pointer to the space allocated for the coroutine state.
-\end{itemdescr}
-
-\begin{itemdecl}
 template<class Alloc, class... Args>
   requires same_as<Allocator, void> || convertible_to<Alloc, Allocator>
     void* operator new(size_t size, allocator_arg_t, Alloc&& alloc, Args&...);
@@ -1623,31 +1597,36 @@ template<class This, class Alloc, class... Args>
 \end{itemdecl}
 
 \begin{itemdescr}
-Let \tcode{A} be \tcode{allocator<void>}
-if \tcode{Allocator} denotes \tcode{void},
-or \tcode{Allocator} otherwise.
-Let \tcode{BAlloc} be \tcode{allocator_traits<A>::template rebind_alloc<U>}
+Let \tcode{A} be
+\begin{itemize}
+\item \tcode{Allocator}, if it is not \tcode{void},
+\item \tcode{remove_cvref_t<Alloc>} for the overloads
+  with a template parameter \tcode{Alloc}, or
+\item \tcode{allocator<void>} otherwise.
+\end{itemize}
+Let \tcode{B} be \tcode{allocator_traits<A>::template rebind_alloc<U>}
 where \tcode{U} denotes an unspecified type whose size and alignment
 are both \tcode{__STDCPP_DEFAULT_NEW_ALIGNMENT__}.
 
 \effects
-Initializes an allocator of type \tcode{BAlloc}
+Initializes an allocator \tcode{b} of type \tcode{B}
 with \tcode{A(std::forward<Alloc>(alloc))},
-and uses that object to allocate the smallest number of blocks that
-provide sufficient storage for:
+for the overloads with a function parameter \tcode{alloc},
+or with \tcode{A()} otherwise.
+Uses \tcode{b} to allocate storage for the smallest array
+of \tcode{U} sufficient to provide storage for:
 \begin{itemize}
 \item a coroutine state of size \tcode{size},
-\item if \tcode{allocator_traits<BAlloc>::is_always_equal::value} is \tcode{false}
-or \tcode{default_initial\-izable<BAlloc>} is \tcode{false},
-space to store a copy of the allocator, and
+\item if \tcode{allocator_traits<B>::is_always_equal::value} is \tcode{false},
+space to store a copy of \tcode{b}, and
 \item if \tcode{Allocator} denotes \tcode{void},
-any additional state necessary to ensure that
+unspecified additional state necessary to ensure that
 \tcode{operator delete} can later deallocate this memory block
-with an allocator equivalent to the allocator used here.
+with an allocator equal to \tcode{b}.
 \end{itemize}
 
 \returns
-A pointer to the space allocated for the coroutine state.
+A pointer to the allocated storage.
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1661,9 +1640,8 @@ one of the above overloads of \tcode{operator new}
 with a \tcode{size} argument equal to \tcode{size}.
 
 \effects
-Deallocates the block of allocator memory
-that includes the coroutine state denoted by \tcode{pointer}
-using an allocator equivalent to the one that was used to allocate it.
+Deallocates the storage pointed to by \tcode{pointer}
+using an allocator equivalent to that used to allocate it.
 \end{itemdescr}
 
 \rSec3[coroutine.generator.iterator]{Class template \tcode{generator::\exposid{iterator}}}
