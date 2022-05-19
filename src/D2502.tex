@@ -130,6 +130,7 @@ Changes made at the request of LWG small group review except those annotated
   which is extraneous thanks to "Effects: equivalent to".
 \item Also use "Effects: equivalent to" for \tcode{operator==} to avoid explicit
   preconditions.
+\item Strike a couple of \tcode{friend sometype} declarations.
 \end{itemize}
 
 \subsection{P2502R1}
@@ -1397,8 +1398,6 @@ default_sentinel_t end() const noexcept;
 \begin{codeblock}
 template<class Ref, class V, class Allocator>
 class generator<Ref, V, Allocator>::promise_type {
-  friend generator;
-
   add_pointer_t<yielded> @\exposid{value_}@ = nullptr; // \expos
   exception_ptr @exposid{except_}@; // \expos
 
@@ -1683,8 +1682,6 @@ public:
     bool operator==(default_sentinel_t) const noexcept;
 
 private:
-    friend class generator;
-
     explicit @\exposid{iterator}@(coroutine_handle<promise_type> coroutine) noexcept; // \expos
 
     coroutine_handle<promise_type> @\exposid{coroutine_}@; // \expos
