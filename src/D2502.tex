@@ -10,7 +10,7 @@
 \newcolumntype{?}{!{\vrule width 1pt}}
 
 \title{\tcode{std::generator}: Synchronous Coroutine Generator for Ranges}
-\docnumber{P2502R1}
+\docnumber{D2502R2}
 \audience{LEWG}
 \author{Casey Carter}{Casey@Carter.net}
 %% \authortwo{Lewis Baker}{lewissbaker@gmail.com}
@@ -40,7 +40,7 @@ their unpublished D2168R4 for continuity of design.
 %%   __STDCPP_DEFAULT_NEW_ALIGNMENT__" a user-accessible name.
 %% * Update implementation
 
-\subsection{P2502R2}
+\subsection{D2502R2}
 Changes made at the request of LWG small group review except those annotated
 [CMC].
 \begin{itemize}
@@ -111,6 +111,11 @@ Changes made at the request of LWG small group review except those annotated
   overload that takes \tcode{elements_of<generator<...},
   use the language "stored exception" instead of "captured exception"
   to avoid any possible confusion with lambda captures.
+  Strike the ``Variables with automatic storage duration'' note
+  as extraneous.
+\item Specify that \grammarterm{yield-expression}s that call
+  one of the \tcode{promise::yield_value} overloads
+  have type \tcode{void}.
 \item Remove extraneous \tcode{static} from all declarations
   of class-member \tcode{operator new} and \tcode{operator delete};
   class-member \tcode{operator new} and \tcode{operator delete}
@@ -1459,17 +1464,19 @@ auto final_suspend() noexcept;
 
 \begin{itemdescr}
 \expects
-A handle denoting the coroutine whose promise object is \tcode{*this}
+A handle for the coroutine whose promise object is \tcode{*this}
 is at the top of the stack of associated coroutine handles
 of some \tcode{generator} object \tcode{x}.
+This function is called by that coroutine
+upon reaching its final suspend point~([dcl.fct.def.coroutine]).
 
 \returns
 An awaitable object of unspecified type
-whose member \tcode{await_suspend}
-pops the coroutine handle
-whose coroutine's promise is \tcode{*this}
+whose member functions arrange for the
+calling coroutine to be suspended,
+pop the coroutine handle
 from the top of \tcode{x}'s stack of associated coroutine handles,
-and resumes execution of the coroutine denoted by
+and resume execution of the coroutine denoted by
 the new top-of-stack coroutine handle, if any.
 If there is no new top-of-stack handle,
 control flow returns to the
@@ -1490,22 +1497,31 @@ Equivalent to:
 \end{itemdescr}
 
 \begin{itemdecl}
-  auto yield_value(const remove_reference_t<yielded>& lvalue)
-    requires is_rvalue_reference_v<yielded> &&
-      constructible_from<remove_cvref_t<yielded>, const remove_reference_t<yielded>&>;
+auto yield_value(const remove_reference_t<yielded>& lvalue)
+  requires is_rvalue_reference_v<yielded> &&
+    constructible_from<remove_cvref_t<yielded>, const remove_reference_t<yielded>&>;
 \end{itemdecl}
 
 \begin{itemdescr}
+\expects
+A handle for the coroutine whose promise object is \tcode{*this}
+is at the top of the stack of associated coroutine handles
+of some \tcode{generator} object \tcode{x}.
+
 \returns
-An object of an unspecified awaitable type~([expr.await])
+An awaitable object of an unspecified type~([expr.await])
 that stores an object of type \tcode{remove_cvref_t<yielded>}
 direct-non-list-initialized with \tcode{lvalue},
 whose member functions arrange for
-\tcode{\exposid{value_}} to point at that stored object
+\tcode{\exposid{value_}} to point to that stored object
 before suspending the coroutine.
 
 \throws
 Any exception thrown by the initialization of the stored object.
+
+\remarks
+A \grammarterm{yield-expression} that calls this function
+has type \tcode{void}~([expr.yield]).
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1521,7 +1537,7 @@ is at the top of the stack of associated coroutine handles
 of some \tcode{generator} object \tcode{x}.
 
 \returns
-An object of an unspecified awaitable type~([expr.await])
+An awaitable object of an unspecified type~([expr.await])
 which takes ownership of the generator \tcode{g.range},
 whose member \tcode{await_suspend}
 pushes \tcode{g.range.\exposid{coroutine_}} atop the stack of
@@ -1533,12 +1549,9 @@ whose member \tcode{await_resume} rethrows any exception stored by
 \tcode{unhandled_exception}. If no such exception is stored, the
 \tcode{await_resume} member has no effects.
 
-\begin{note}
-Variables with automatic storage duration in the scope of
-the coroutine denoted by \tcode{g.range.\exposid{coroutine_}}
-are destroyed before variables with automatic storage duration
-in the scope of the coroutine whose promise object is \tcode{*this}.
-\end{note}
+\remarks
+A \grammarterm{yield-expression} that calls this function
+has type \tcode{void}~([expr.yield]).
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1559,6 +1572,10 @@ Equivalent to:
     return yield_value(ranges::elements_of(nested(
       allocator_arg, r.allocator, addressof(r.range))));
 \end{codeblock}
+
+\remarks
+A \grammarterm{yield-expression} that calls this function
+has type \tcode{void}~([expr.yield]).
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1567,12 +1584,12 @@ void unhandled_exception();
 
 \begin{itemdescr}
 \expects
-A handle denoting the coroutine whose promise object is \tcode{*this}
+A handle for the coroutine whose promise object is \tcode{*this}
 is at the top of the stack of associated coroutine handles
 of some \tcode{generator} object \tcode{x}.
 
 \effects
-If the handle denoting the coroutine
+If the handle for the coroutine
 whose promise object is \tcode{*this}
 is the sole element of \tcode{x}'s stack of associated coroutines,
 equivalent to: \tcode{throw}.
