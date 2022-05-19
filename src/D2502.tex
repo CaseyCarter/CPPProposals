@@ -113,7 +113,7 @@ Changes made at the request of LWG small group review except those annotated
   similarly use \tcode{r.range} directly
   instead of defining \tcode{rng} as an identical lvalue.
   In the ``effects equivalent to'' code,
-  define a local name for \code{range_reference_t<Rng>}
+  define a local name for \tcode{range_reference_t<Rng>}
   and use that instead of \tcode{auto} and \tcode{decltype(e)}.
 \item Specify that \grammarterm{yield-expression}s that call
   one of the \tcode{promise::yield_value} overloads
@@ -1400,6 +1400,7 @@ class generator<Ref, V, Allocator>::promise_type {
   friend generator;
 
   add_pointer_t<yielded> @\exposid{value_}@ = nullptr; // \expos
+  exception_ptr @exposid{except_}@; // \expos
 
 public:
   generator get_return_object() noexcept;
@@ -1546,10 +1547,11 @@ pushes \tcode{g.range.\exposid{coroutine_}} atop the stack of
 coroutine handles associated with \tcode{x}
 before resuming execution of the coroutine denoted
 by \tcode{g.range.\exposid{coroutine_}}, and
-whose member \tcode{await_resume} rethrows any exception stored by
-\tcode{g.range.\exposid{coroutine_}.promise()}'s member
-\tcode{unhandled_exception}. If no such exception is stored, the
-\tcode{await_resume} member has no effects.
+whose member \tcode{await_resume} evaluates
+\tcode{rethrow_exception(\exposid{except_})}
+if \tcode{bool(\exposid{except_})} is \tcode{true}.
+If \tcode{bool(\exposid{except_})} is \tcode{false},
+the \tcode{await_resume} member has no effects.
 
 \remarks
 A \grammarterm{yield-expression} that calls this function
@@ -1595,12 +1597,8 @@ of some \tcode{generator} object \tcode{x}.
 If the handle for the coroutine
 whose promise object is \tcode{*this}
 is the sole element of \tcode{x}'s stack of associated coroutines,
-equivalent to: \tcode{throw}.
-Otherwise, stores the result of \tcode{current_exception()}
-where it can later be retrieved and rethrown by the \tcode{await_resume}
-member of the awaitable object returned from the \tcode{yield_value} call
-that pushed this coroutine handle onto
-\tcode{x}'s stack of associated coroutine handles.
+equivalent to: \tcode{throw;}
+Otherwise, assigns \tcode{current_exception()} to \tcode{\exposid{except_}}.
 \end{itemdescr}
 
 \begin{itemdecl}
