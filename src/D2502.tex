@@ -128,9 +128,11 @@ Changes made at the request of LWG small group review except those annotated
   \tcode{\exposid{iterator}::operator++()}.
 \item Remove precondition from \tcode{\exposid{iterator}::operator++(int)}
   which is extraneous thanks to "Effects: equivalent to".
-\item Also use "Effects: equivalent to" for \tcode{operator==} to avoid explicit
-  preconditions.
-\item Strike a couple of \tcode{friend sometype} declarations.
+\item Make \tcode{operator==} a hidden friend instead of a member
+  for consistency with the rest of the library.
+  Also use "Effects: equivalent to" for \tcode{operator==}
+  to avoid explicit preconditions.
+  \item Strike a couple of \tcode{friend sometype} declarations.
 \end{itemize}
 
 \subsection{P2502R1}
@@ -1365,11 +1367,12 @@ Equivalent to:
 suspended at its initial suspend point~([dcl.fct.def.coroutine]).
 
 \effects
-Equivalent to:
-\begin{codeblock}
-    @\exposid{coroutine_}@.resume();
-    return @\exposid{iterator}@(@\exposid{coroutine_}@);
-\end{codeblock}
+Equivalent to: \tcode{\exposid{coroutine_}.resume()}.
+
+\returns
+An \tcode{\exposid{iterator}} object
+whose member \tcode{\exposid{coroutine_}}
+is equal to \tcode{\exposid{coroutine_}}.
 
 \remarks
 This function pushes \exposid{coroutine_}
@@ -1679,11 +1682,9 @@ public:
     @\exposid{iterator}@& operator++();
     void operator++(int);
 
-    bool operator==(default_sentinel_t) const noexcept;
+    friend bool operator==(@\exposid{iterator}@ i, default_sentinel_t) noexcept;
 
 private:
-    explicit @\exposid{iterator}@(coroutine_handle<promise_type> coroutine) noexcept; // \expos
-
     coroutine_handle<promise_type> @\exposid{coroutine_}@; // \expos
 };
 \end{codeblock}
@@ -1759,23 +1760,13 @@ Equivalent to: \tcode{++*this}.
 \end{itemdescr}
 
 \begin{itemdecl}
-bool operator==(default_sentinel_t) const noexcept;
+friend bool operator==(@\exposid{iterator}@ i, default_sentinel_t) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
 \effects
-Equivalent to: \tcode{return \exposid{coroutine_}.done();}
+Equivalent to: \tcode{return i.\exposid{coroutine_}.done();}
 \end{itemdescr}
-
-\begin{itemdecl}
-explicit @\exposid{iterator}@(coroutine_handle<promise_type> coroutine) noexcept;
-\end{itemdecl}
-
-\begin{itemdescr}
-\effects
-Initializes \tcode{\exposid{coroutine_}} with \tcode{coroutine}.
-\end{itemdescr}
-
 \end{addedblock}
 
 \newpage
