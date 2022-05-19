@@ -1623,7 +1623,7 @@ Let \tcode{A} be
 \item \tcode{allocator<void>} otherwise.
 \end{itemize}
 Let \tcode{B} be \tcode{allocator_traits<A>::template rebind_alloc<U>}
-where \tcode{U} denotes an unspecified type whose size and alignment
+where \tcode{U} is an unspecified type whose size and alignment
 are both \tcode{__STDCPP_DEFAULT_NEW_ALIGNMENT__}.
 
 \effects
@@ -1637,7 +1637,7 @@ of \tcode{U} sufficient to provide storage for:
 \item a coroutine state of size \tcode{size},
 \item if \tcode{allocator_traits<B>::is_always_equal::value} is \tcode{false},
 space to store a copy of \tcode{b}, and
-\item if \tcode{Allocator} denotes \tcode{void},
+\item if \tcode{Allocator} is \tcode{void},
 unspecified additional state necessary to ensure that
 \tcode{operator delete} can later deallocate this memory block
 with an allocator equal to \tcode{b}.
