@@ -132,7 +132,8 @@ Changes made at the request of LWG small group review except those annotated
   for consistency with the rest of the library.
   Also use "Effects: equivalent to" for \tcode{operator==}
   to avoid explicit preconditions.
-  \item Strike a couple of \tcode{friend sometype} declarations.
+\item Strike a couple of \tcode{friend sometype} declarations.
+\item Strike exposition-only constructors.
 \end{itemize}
 
 \subsection{P2502R1}
@@ -1267,8 +1268,6 @@ namespace std {
     default_sentinel_t end() const noexcept;
 
   private:
-    explicit generator(coroutine_handle<promise_type> coroutine) noexcept; // \expos
-
     coroutine_handle<promise_type> @\exposid{coroutine_}@ = nullptr; // \expos
   };
 }
@@ -1313,14 +1312,6 @@ A coroutine handle is associated with
 at most one \tcode{generator} object at a time.
 
 \rSec3[generator.members]{Members}
-
-\begin{itemdecl}
-explicit generator(coroutine_handle<promise_type> coro) noexcept;
-\end{itemdecl}
-
-\begin{itemdescr}
-Initializes \tcode{\exposid{coroutine_}} with \tcode{coro}.
-\end{itemdescr}
 
 \begin{itemdecl}
 generator(generator&& other) noexcept;
@@ -1452,7 +1443,8 @@ generator get_return_object() noexcept;
 
 \begin{itemdescr}
 \returns
-\tcode{generator(coroutine_handle<promise_type>::from_promise(*this))}.
+A \tcode{generator} object whose member \tcode{\exposid{coroutine_}}
+is \tcode{coroutine_handle<promise_type>::from_promise(*this)}.
 \end{itemdescr}
 
 \begin{itemdecl}
