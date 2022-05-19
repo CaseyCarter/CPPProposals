@@ -35,13 +35,15 @@ their unpublished D2168R4 for continuity of design.
 \section{Revisions}
 
 %% TODO:
-%% * Tomasz's request
+%% * Allow yielding lvalues for generator<T> but not generator<T&&>.
+%% * Give the allocation block unit type a user-accessible name.
 %% * Update implementation
 
 \subsection{P2502R2}
 Changes made at the request of LWG small group review except those annotated
 [CMC].
 \begin{itemize}
+\item Rebase onto N4910.
 \item [CMC] Change directions to the Editor from blue "Drafting Note"s to
   magenta "Editor's note" in square brackets. Hopefully this makes them
   distinctive so as not to be confused with the actual wording changes.
@@ -104,6 +106,14 @@ Changes made at the request of LWG small group review except those annotated
   Similarly use \tcode{r.range} directly in the specification of
   the \tcode{yield_value} overload that takes \tcode{elements_of<Range}
   instead of defining \tcode{rng} as an identical lvalue.
+\item Also in the description of the \tcode{yield_value}
+  overload that takes \tcode{elements_of<generator<...},
+  use the language "stored exception" instead of "captured exception"
+  to avoid any possible confusion with lambda captures.
+\item Remove extraneous \tcode{static} from all declarations
+  of class-member \tcode{operator new} and \tcode{operator delete};
+  class-member \tcode{operator new} and \tcode{operator delete}
+  are \tcode{static} members regardless.
 \item Fix precondition on \tcode{\exposid{iterator}::operator*()} and
   \tcode{\exposid{iterator}::operator++()}.
 \item Remove precondition from \tcode{\exposid{iterator}::operator++(int)}
@@ -1408,18 +1418,18 @@ public:
 
   void unhandled_exception();
 
-  static void* operator new(size_t size)
+  void* operator new(size_t size)
     requires same_as<Allocator, void> || default_initializable<Allocator>;
 
   template<class Alloc, class... Args>
     requires same_as<Allocator, void> || convertible_to<Alloc, Allocator>
-      static void* operator new(size_t size, allocator_arg_t, Alloc&& alloc, Args&...);
+      void* operator new(size_t size, allocator_arg_t, Alloc&& alloc, Args&...);
 
   template<class This, class Alloc, class... Args>
     requires same_as<Allocator, void> || convertible_to<Alloc, Allocator>
-      static void* operator new(size_t size, This&, allocator_arg_t, Alloc&& alloc, Args&...);
+      void* operator new(size_t size, This&, allocator_arg_t, Alloc&& alloc, Args&...);
 
-  static void operator delete(void* pointer, size_t size) noexcept;
+  void operator delete(void* pointer, size_t size) noexcept;
 };
 \end{codeblock}
 
@@ -1515,9 +1525,10 @@ pushes \tcode{g.range.\exposid{coroutine_}} atop the stack of
 coroutine handles associated with \tcode{x}
 before resuming execution of the coroutine denoted
 by \tcode{g.range.\exposid{coroutine_}}, and
-whose member \tcode{await_resume} rethrows any exception captured by
-a call to \tcode{g.range.\exposid{coroutine_}.promise()}'s member
-\tcode{unhandled_exception}.
+whose member \tcode{await_resume} rethrows any exception stored by
+\tcode{g.range.\exposid{coroutine_}.promise()}'s member
+\tcode{unhandled_exception}. If no such exception is stored, the
+\tcode{await_resume} member has no effects.
 
 \begin{note}
 Variables with automatic storage duration in the scope of
@@ -1570,7 +1581,7 @@ that pushed this coroutine handle onto
 \end{itemdescr}
 
 \begin{itemdecl}
-static void* operator new(size_t size)
+void* operator new(size_t size)
   requires same_as<Allocator, void> || default_initializable<Allocator>;
 \end{itemdecl}
 
@@ -1583,7 +1594,7 @@ where \tcode{U} denotes an unspecified type whose size and alignment
 are both \tcode{__STDCPP_DEFAULT_NEW_ALIGNMENT__}.
 
 \effects
-Initializes an allocator of type \tcode{BAlloc} with \tcode{A\{\}},
+Initializes an allocator of type \tcode{BAlloc} with \tcode{A()},
 and uses that object to allocate the smallest number of blocks that
 provide sufficient storage for:
 \begin{itemize}
@@ -1603,11 +1614,11 @@ A pointer to the space allocated for the coroutine state.
 \begin{itemdecl}
 template<class Alloc, class... Args>
   requires same_as<Allocator, void> || convertible_to<Alloc, Allocator>
-    static void* operator new(size_t size, allocator_arg_t, Alloc&& alloc, Args&...);
+    void* operator new(size_t size, allocator_arg_t, Alloc&& alloc, Args&...);
 
 template<class This, class Alloc, class... Args>
   requires same_as<Allocator, void> || convertible_to<Alloc, Allocator>
-    static void* operator new(size_t size, This&, allocator_arg_t, Alloc&& alloc, Args&...);
+    void* operator new(size_t size, This&, allocator_arg_t, Alloc&& alloc, Args&...);
 \end{itemdecl}
 
 \begin{itemdescr}
@@ -1639,7 +1650,7 @@ A pointer to the space allocated for the coroutine state.
 \end{itemdescr}
 
 \begin{itemdecl}
-static void operator delete(void* pointer, size_t size) noexcept;
+void operator delete(void* pointer, size_t size) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
