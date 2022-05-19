@@ -104,15 +104,17 @@ Changes made at the request of LWG small group review except those annotated
   that refers to "an lvalue denoting the \tcode{generator}
   referenced by \tcode{g.range}".
   \tcode{g.range} is already such an lvalue, just use it directly.
-  Similarly use \tcode{r.range} directly in the specification of
-  the \tcode{yield_value} overload that takes \tcode{elements_of<Range}
-  instead of defining \tcode{rng} as an identical lvalue.
-\item Also in the description of the \tcode{yield_value}
-  overload that takes \tcode{elements_of<generator<...},
-  use the language "stored exception" instead of "captured exception"
+  Use the language "stored exception" instead of "captured exception"
   to avoid any possible confusion with lambda captures.
   Strike the ``Variables with automatic storage duration'' note
   as extraneous.
+\item In the description of the \tcode{yield_value}
+  overload that takes \tcode{elements_of<Rng},
+  similarly use \tcode{r.range} directly
+  instead of defining \tcode{rng} as an identical lvalue.
+  In the ``effects equivalent to'' code,
+  define a local name for \code{range_reference_t<Rng>}
+  and use that instead of \tcode{auto} and \tcode{decltype(e)}.
 \item Specify that \grammarterm{yield-expression}s that call
   one of the \tcode{promise::yield_value} overloads
   have type \tcode{void}.
@@ -1566,8 +1568,9 @@ Equivalent to:
 \begin{codeblock}
     auto nested = [](allocator_arg_t, Alloc, auto* range_ptr)
       -> generator<yielded, ranges::range_value_t<Rng>, Alloc> {
-        for (auto&& e : *range_ptr)
-          co_yield static_cast<yielded>(std::forward<decltype(e)>(e));
+        using RRef = ranges::range_reference_t<Rng>;
+        for (RRef&& e : *range_ptr)
+          co_yield static_cast<yielded>(std::forward<RRef>(e));
       };
     return yield_value(ranges::elements_of(nested(
       allocator_arg, r.allocator, addressof(r.range))));
