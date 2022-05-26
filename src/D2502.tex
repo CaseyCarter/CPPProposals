@@ -134,6 +134,8 @@ Changes made at the request of LWG small group review except those annotated
   to avoid explicit preconditions.
 \item Strike a couple of \tcode{friend sometype} declarations.
 \item Strike exposition-only constructors.
+\item Coroutine handles do not "denote" coroutines,
+  they "refer to" coroutines ([expr.await]/3.5 is the first of many usages).
 \end{itemize}
 
 \subsection{P2502R1}
@@ -1308,6 +1310,7 @@ for \tcode{generator} is undefined.
 An \tcode{generator} object has
 an associated stack of coroutine handles,
 which is initially empty.
+
 A coroutine handle is associated with
 at most one \tcode{generator} object at a time.
 
@@ -1363,7 +1366,8 @@ Equivalent to: \tcode{\exposid{coroutine_}.resume()}.
 \returns
 An \tcode{\exposid{iterator}} object
 whose member \tcode{\exposid{coroutine_}}
-is equal to \tcode{\exposid{coroutine_}}.
+refers to the same coroutine as does
+\tcode{\exposid{coroutine_}}.
 
 \remarks
 This function pushes \exposid{coroutine_}
@@ -1473,7 +1477,7 @@ whose member functions arrange for the
 calling coroutine to be suspended,
 pop the coroutine handle
 from the top of \tcode{x}'s stack of associated coroutine handles,
-and resume execution of the coroutine denoted by
+and resume execution of the coroutine referred to by
 the new top-of-stack coroutine handle, if any.
 If there is no new top-of-stack handle,
 control flow returns to the
@@ -1511,7 +1515,7 @@ that stores an object of type \tcode{remove_cvref_t<yielded>}
 direct-non-list-initialized with \tcode{lvalue},
 whose member functions arrange for
 \tcode{\exposid{value_}} to point to that stored object
-before suspending the coroutine.
+and then suspend the coroutine.
 
 \throws
 Any exception thrown by the initialization of the stored object.
@@ -1539,7 +1543,7 @@ which takes ownership of the generator \tcode{g.range},
 whose member \tcode{await_suspend}
 pushes \tcode{g.range.\exposid{coroutine_}} atop the stack of
 coroutine handles associated with \tcode{x}
-before resuming execution of the coroutine denoted
+and resumes execution of the coroutine referred to
 by \tcode{g.range.\exposid{coroutine_}}, and
 whose member \tcode{await_resume} evaluates
 \tcode{rethrow_exception(\exposid{except_})}
@@ -1712,7 +1716,7 @@ Equivalent to:
 some \tcode{generator}.
 
 Let \tcode{p} be the promise object of the coroutine
-denoted by the handle at the top of
+referred to by the handle at the top of
 the stack of coroutine handles associated with
 the \tcode{generator} whose stack includes \exposid{coroutine_}.
 
@@ -1734,7 +1738,7 @@ Equivalent to:
 some \tcode{generator}.
 
 \effects
-Resumes the coroutine denoted by the handle
+Resumes the coroutine referred to by the handle
 at the top of the stack of coroutine handles associated with
 the \tcode{generator} whose stack includes \exposid{coroutine_}.
 
