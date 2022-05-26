@@ -92,6 +92,11 @@ Changes made at the request of LWG small group review except those annotated
   is defined in [dcl.fct.def.coroutine].
 \item We don't need to emphasize that the stack is empty in \tcode{begin}.
 \item Corrected spelling of \tcode{__STDCPP_DEFAULT_NEW_ALIGNMENT__}.
+\item{} [CMC] Coalesce privates into a single section at:
+  \begin{itemize}
+    \item the beginning of \tcode{generator}'s body, and
+    \item the end of \tcode{promise_type}'s body.
+  \end{itemize}
 \item Clarify behavior of \tcode{promise_type::final_suspend}, especially when
   the stack of associated coroutine handles becomes empty.
 \item Rename template parameter \tcode{Alloc2} of \tcode{promise}'s
@@ -141,6 +146,7 @@ Changes made at the request of LWG small group review except those annotated
 \item Strike exposition-only constructors.
 \item Coroutine handles do not "denote" coroutines,
   they "refer to" coroutines ([expr.await]/3.5 is the first of many usages).
+\item{} [CMC] Define the nested classes within \tcode{std::ranges}.
 \end{itemize}
 
 \subsection{P2502R1}
@@ -1252,11 +1258,14 @@ namespace std {
 namespace std {
   template<class Ref, class V = void, class Allocator = void>
   class generator {
+  private:
     using @\exposid{value}@ =       // \expos
       conditional_t<is_void_v<V>, remove_cvref_t<Ref>, V>;
     using @\exposid{reference}@ =   // \expos
       conditional_t<is_void_v<V>, Ref&&, Ref>;
     class @\exposid{iterator}@;     // \expos
+
+    coroutine_handle<promise_type> @\exposid{coroutine_}@ = nullptr; // \expos
 
   public:
     using yielded =
@@ -1273,9 +1282,6 @@ namespace std {
 
     @\exposid{iterator}@ begin();
     default_sentinel_t end() const noexcept;
-
-  private:
-    coroutine_handle<promise_type> @\exposid{coroutine_}@ = nullptr; // \expos
   };
 }
 \end{codeblock}
@@ -1399,51 +1405,53 @@ default_sentinel_t end() const noexcept;
 \rSec3[coroutine.generator.promise]{class \tcode{generator::promise_type}}
 
 \begin{codeblock}
-template<class Ref, class V, class Allocator>
-class generator<Ref, V, Allocator>::promise_type {
-  add_pointer_t<yielded> @\exposid{value_}@ = nullptr; // \expos
-  exception_ptr @\exposid{except_}@; // \expos
+namespace std::ranges {
+  template<class Ref, class V, class Allocator>
+  class generator<Ref, V, Allocator>::promise_type {
+  public:
+    generator get_return_object() noexcept;
 
-public:
-  generator get_return_object() noexcept;
+    suspend_always initial_suspend() noexcept;
+    auto final_suspend() noexcept;
 
-  suspend_always initial_suspend() noexcept;
+    suspend_always yield_value(yielded value) noexcept;
 
-  auto final_suspend() noexcept;
+    auto yield_value(const remove_reference_t<yielded>& lvalue)
+      requires is_rvalue_reference_v<yielded> &&
+        constructible_from<remove_cvref_t<yielded>, const remove_reference_t<yielded>&>;
 
-  suspend_always yield_value(yielded value) noexcept;
+    template<class R2, class V2, class Alloc2, class Unused>
+      requires same_as<typename generator<T2, V2, Alloc2>::yielded, yielded>
+        auto yield_value(ranges::elements_of<generator<T2, V2, Alloc2>&&, Unused> g) noexcept;
 
-  auto yield_value(const remove_reference_t<yielded>& lvalue)
-    requires is_rvalue_reference_v<yielded> &&
-      constructible_from<remove_cvref_t<yielded>, const remove_reference_t<yielded>&>;
+    template<ranges::input_range Rng, class Alloc>
+      requires convertible_to<ranges::range_reference_t<Rng>, yielded>
+        auto yield_value(ranges::elements_of<Rng, Alloc> r) noexcept;
 
-  template<class R2, class V2, class Alloc2, class Unused>
-    requires same_as<typename generator<T2, V2, Alloc2>::yielded, yielded>
-      auto yield_value(ranges::elements_of<generator<T2, V2, Alloc2>&&, Unused> g) noexcept;
+    void await_transform() = delete;
 
-  template<ranges::input_range Rng, class Alloc>
-    requires convertible_to<ranges::range_reference_t<Rng>, yielded>
-      auto yield_value(ranges::elements_of<Rng, Alloc> r) noexcept;
+    void return_void() noexcept {}
 
-  void await_transform() = delete;
+    void unhandled_exception();
 
-  void return_void() noexcept {}
+    void* operator new(size_t size)
+      requires same_as<Allocator, void> || default_initializable<Allocator>;
 
-  void unhandled_exception();
+    template<class Alloc, class... Args>
+      requires same_as<Allocator, void> || convertible_to<Alloc, Allocator>
+        void* operator new(size_t size, allocator_arg_t, Alloc&& alloc, Args&...);
 
-  void* operator new(size_t size)
-    requires same_as<Allocator, void> || default_initializable<Allocator>;
+    template<class This, class Alloc, class... Args>
+      requires same_as<Allocator, void> || convertible_to<Alloc, Allocator>
+        void* operator new(size_t size, This&, allocator_arg_t, Alloc&& alloc, Args&...);
 
-  template<class Alloc, class... Args>
-    requires same_as<Allocator, void> || convertible_to<Alloc, Allocator>
-      void* operator new(size_t size, allocator_arg_t, Alloc&& alloc, Args&...);
+    void operator delete(void* pointer, size_t size) noexcept;
 
-  template<class This, class Alloc, class... Args>
-    requires same_as<Allocator, void> || convertible_to<Alloc, Allocator>
-      void* operator new(size_t size, This&, allocator_arg_t, Alloc&& alloc, Args&...);
-
-  void operator delete(void* pointer, size_t size) noexcept;
-};
+  private:
+    add_pointer_t<yielded> @\exposid{value_}@ = nullptr; // \expos
+    exception_ptr @\exposid{except_}@; // \expos
+  };
+}
 \end{codeblock}
 
 \begin{itemdecl}
@@ -1668,26 +1676,28 @@ using an allocator equivalent to that used to allocate it.
 \rSec3[coroutine.generator.iterator]{Class template \tcode{generator::\exposid{iterator}}}
 
 \begin{codeblock}
-template<class Ref, class V, class Allocator>
-class generator<Ref, V, Allocator>::@\exposid{iterator}@ {
-public:
-    using value_type = @\exposid{value}@;
-    using difference_type = ptrdiff_t;
+namespace std::ranges {
+  template<class Ref, class V, class Allocator>
+  class generator<Ref, V, Allocator>::@\exposid{iterator}@ {
+  public:
+      using value_type = @\exposid{value}@;
+      using difference_type = ptrdiff_t;
 
-    @\exposid{iterator}@(@\exposid{iterator}@&& other) noexcept;
+      @\exposid{iterator}@(@\exposid{iterator}@&& other) noexcept;
 
-    @\exposid{iterator}@& operator=(@\exposid{iterator}@&& other) noexcept;
+      @\exposid{iterator}@& operator=(@\exposid{iterator}@&& other) noexcept;
 
-    @\exposid{reference}@ operator*() const noexcept(is_nothrow_copy_constructible_v<@\exposid{reference}@>);
+      @\exposid{reference}@ operator*() const noexcept(is_nothrow_copy_constructible_v<@\exposid{reference}@>);
 
-    @\exposid{iterator}@& operator++();
-    void operator++(int);
+      @\exposid{iterator}@& operator++();
+      void operator++(int);
 
-    friend bool operator==(@\exposid{iterator}@ i, default_sentinel_t) noexcept;
+      friend bool operator==(@\exposid{iterator}@ i, default_sentinel_t) noexcept;
 
-private:
-    coroutine_handle<promise_type> @\exposid{coroutine_}@; // \expos
-};
+  private:
+      coroutine_handle<promise_type> @\exposid{coroutine_}@; // \expos
+  };
+}
 \end{codeblock}
 
 \begin{itemdecl}
