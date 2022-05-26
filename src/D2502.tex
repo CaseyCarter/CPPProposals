@@ -35,28 +35,30 @@ their unpublished D2168R4 for continuity of design.
 \section{Revisions}
 
 %% TODO:
+%% * Update implementation
 %% * Allow yielding lvalues for generator<T> but not generator<T&&>.
 %% * Give "unspecified type whose size and alignment are both
 %%   __STDCPP_DEFAULT_NEW_ALIGNMENT__" a user-accessible name.
-%% * Update implementation
 
 \subsection{D2502R2}
 Changes made at the request of LWG small group review except those annotated
 [CMC].
 \begin{itemize}
 \item Rebase onto N4910.
-\item [CMC] Change directions to the Editor from blue "Drafting Note"s to
-  magenta "Editor's note" in square brackets. Hopefully this makes them
+\item{} [CMC] Change directions to the Editor from blue ``Drafting Note'' to
+  magenta ``Editor's note'' in square brackets. Hopefully this makes them
   distinctive so as not to be confused with the actual wording changes.
 \item Changes to wording for \tcode{elements_of}:
   \begin{itemize}
     \item Don't present as a subclause that holds a single subclause; flatten.
-    \item [CMC] Don't reuse the same input range in the example, which could
+    \item{} [CMC] Don't reuse the same input range in the example, which could
       result in undefined behavior with some input ranges. Instead add a
       \tcode{bool} template parameter that selects between the two different
       uses with \tcode{if constexpr}.
-    \item [CMC] Annotate member \tcode{range} with \tcode{[[no_unique_address]]}
-      because a range type \emph{could} be empty even if they typically are not.
+    \item{} [CMC] Annotate member \tcode{range}
+      with \tcode{[[no_unique_address]]}
+      because a range type \emph{could} be empty
+      even if they typically are not.
   \end{itemize}
 \item Editorial clarifications in [coroutine.generator.overview]:
   \begin{itemize}
@@ -79,7 +81,8 @@ Changes made at the request of LWG small group review except those annotated
   template parameter as a precondition.
 \item Replace all occurrences (all instances?) of ``instance'' in the wording
   (primarily ``generator instance'' becomes ``generator object'').
-\item The notional stack of coroutines associated with a generator object
+\item The notional stack of coroutines
+  associated with a generator object
   is now a notional stack of coroutine handles.
 \item Simplify the specification of \tcode{generator}'s assignment operator:
   it now takes a \tcode{generator} argument by-value and swaps coroutine handles
@@ -89,6 +92,8 @@ Changes made at the request of LWG small group review except those annotated
   is defined in [dcl.fct.def.coroutine].
 \item We don't need to emphasize that the stack is empty in \tcode{begin}.
 \item Corrected spelling of \tcode{__STDCPP_DEFAULT_NEW_ALIGNMENT__}.
+\item Clarify behavior of \tcode{promise_type::final_suspend}, especially when
+  the stack of associated coroutine handles becomes empty.
 \item Rename template parameter \tcode{Alloc2} of \tcode{promise}'s
   \tcode{yield_value(elements_of)} member function template to \tcode{Alloc}.
 \item \tcode{get_return_object} returns \tcode{generator(...)} instead of
@@ -130,7 +135,7 @@ Changes made at the request of LWG small group review except those annotated
   which is extraneous thanks to "Effects: equivalent to".
 \item Make \tcode{operator==} a hidden friend instead of a member
   for consistency with the rest of the library.
-  Also use "Effects: equivalent to" for \tcode{operator==}
+  [CMC] Also use "Effects: equivalent to" for \tcode{operator==}
   to avoid explicit preconditions.
 \item Strike a couple of \tcode{friend sometype} declarations.
 \item Strike exposition-only constructors.
@@ -1479,7 +1484,7 @@ pop the coroutine handle
 from the top of \tcode{x}'s stack of associated coroutine handles,
 and resume execution of the coroutine referred to by
 the new top-of-stack coroutine handle, if any.
-If there is no new top-of-stack handle,
+If the stack is empty after popping,
 control flow returns to the
 current coroutine caller or resumer~([dcl.fct.def.coroutine]).
 \end{itemdescr}
