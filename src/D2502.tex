@@ -1402,7 +1402,7 @@ default_sentinel_t end() const noexcept;
 template<class Ref, class V, class Allocator>
 class generator<Ref, V, Allocator>::promise_type {
   add_pointer_t<yielded> @\exposid{value_}@ = nullptr; // \expos
-  exception_ptr @exposid{except_}@; // \expos
+  exception_ptr @\exposid{except_}@; // \expos
 
 public:
   generator get_return_object() noexcept;
