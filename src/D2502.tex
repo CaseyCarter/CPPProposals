@@ -39,9 +39,16 @@ their unpublished D2168R4 for continuity of design.
 %% * Give "unspecified type whose size and alignment are both
 %%   __STDCPP_DEFAULT_NEW_ALIGNMENT__" a user-accessible name.
 
-\subsection{D2502R2}
-Changes made at the request of LWG small group review except those annotated
-[CMC].
+\subsection{D2502R2 (Full LWG review)}
+Changes requested during 2022-05-27 LWG review.
+\begin{itemize}
+\item \tcode{generator} publicly derives from \tcode{ranges::view_interface}
+  instead of specializing \tcode{ranges::enable_view}.
+\end{itemize}
+
+\subsection{D2502R2 (LWG small group review)}
+Changes made at the request of LWG small group review, except those annotated
+[CMC] which I made on my own recognizance.
 \begin{itemize}
 \item Rebase onto N4910.
 \item{} [CMC] Change directions to the Editor from blue ``Drafting Note'' to
@@ -1196,11 +1203,11 @@ namespace std::ranges {
   template<range R, class Allocator = allocator<byte>>
   struct elements_of {
     [[no_unique_address]] R range;
-    [[no_unique_address]] Allocator allocator{};
+    [[no_unique_address]] Allocator allocator = Allocator();
   };
 
   template<class R, class Allocator = allocator<byte>>
-  elements_of(R&&, Allocator = {}) -> elements_of<R&&, Allocator>;
+  elements_of(R&&, Allocator = Allocator()) -> elements_of<R&&, Allocator>;
 }
 \end{codeblock}
 
@@ -1212,7 +1219,7 @@ namespace std::ranges {
 \rSec2[coroutine.generator]{Range Generators}
 
 \rSec3[coroutine.generator.overview]{Overview}
-\tcode{generator} presents a view of the elements yielded
+Class template \tcode{generator} presents a view of the elements yielded
 by the evaluation of a coroutine.
 
 A \tcode{generator} generates a sequence of elements by
@@ -1246,9 +1253,6 @@ namespace std {
   // [coroutine.generator.class], class template \tcode{generator}
   template<class Ref, class V = void, class Allocator = void>
   class generator;
-
-  template<class Ref, class V, class Allocator>
-  constexpr bool ranges::enable_view<generator<Ref, V, Allocator>> = true;
 }
 \end{codeblock}
 
@@ -1257,15 +1261,13 @@ namespace std {
 \begin{codeblock}
 namespace std {
   template<class Ref, class V = void, class Allocator = void>
-  class generator {
+  class generator : public ranges::view_interface<generator<Ref, V, Allocator>> {
   private:
     using @\exposid{value}@ =       // \expos
       conditional_t<is_void_v<V>, remove_cvref_t<Ref>, V>;
     using @\exposid{reference}@ =   // \expos
       conditional_t<is_void_v<V>, Ref&&, Ref>;
     class @\exposid{iterator}@;     // \expos
-
-    coroutine_handle<promise_type> @\exposid{coroutine_}@ = nullptr; // \expos
 
   public:
     using yielded =
@@ -1282,6 +1284,9 @@ namespace std {
 
     @\exposid{iterator}@ begin();
     default_sentinel_t end() const noexcept;
+
+  private:
+    coroutine_handle<promise_type> @\exposid{coroutine_}@ = nullptr; // \expos
   };
 }
 \end{codeblock}
@@ -1319,8 +1324,9 @@ The behavior of a program that adds a specialization
 for \tcode{generator} is undefined.
 
 A \tcode{generator} object has
-an associated stack of coroutine handles,
-which is initially empty.
+an stack of associated coroutine handles.
+This stack is used to track which coroutine is currently active
+when one coroutine recursively yields another.
 
 A coroutine handle is associated with
 at most one \tcode{generator} object at a time.
@@ -1332,7 +1338,9 @@ generator(generator&& other) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
+\effects
 Initializes \tcode{\exposid{coroutine_}} with \tcode{exchange(other.\exposid{coroutine_}, \{\})}.
+The stack of associated coroutine handles is transferred from \tcode{other} to \tcode{*this}.
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1340,6 +1348,7 @@ Initializes \tcode{\exposid{coroutine_}} with \tcode{exchange(other.\exposid{cor
 \end{itemdecl}
 
 \begin{itemdescr}
+%% Destroy the stack
 \effects
 Equivalent to:
 \begin{codeblock}
@@ -1411,12 +1420,12 @@ namespace std::ranges {
   public:
     generator get_return_object() noexcept;
 
-    suspend_always initial_suspend() noexcept;
+    suspend_always initial_suspend() const noexcept { return {}; }
     auto final_suspend() noexcept;
 
-    suspend_always yield_value(yielded value) noexcept;
+    suspend_always yield_value(yielded val) noexcept;
 
-    auto yield_value(const remove_reference_t<yielded>& lvalue)
+    auto yield_value(const remove_reference_t<yielded>& lval)
       requires is_rvalue_reference_v<yielded> &&
         constructible_from<remove_cvref_t<yielded>, const remove_reference_t<yielded>&>;
 
@@ -1430,7 +1439,7 @@ namespace std::ranges {
 
     void await_transform() = delete;
 
-    void return_void() noexcept {}
+    void return_void() const noexcept {}
 
     void unhandled_exception();
 
@@ -1461,15 +1470,8 @@ generator get_return_object() noexcept;
 \begin{itemdescr}
 \returns
 A \tcode{generator} object whose member \tcode{\exposid{coroutine_}}
-is \tcode{coroutine_handle<promise_type>::from_promise(*this)}.
-\end{itemdescr}
-
-\begin{itemdecl}
-suspend_always initial_suspend() noexcept;
-\end{itemdecl}
-
-\begin{itemdescr}
-\returns \tcode{\{\}}.
+is \tcode{coroutine_handle<promise_type>::from_promise(*this)},
+and whose stack of associated coroutine handles is empty.
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1498,20 +1500,20 @@ current coroutine caller or resumer~([dcl.fct.def.coroutine]).
 \end{itemdescr}
 
 \begin{itemdecl}
-suspend_always yield_value(yielded x) noexcept;
+suspend_always yield_value(yielded val) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
 \effects
 Equivalent to:
-\tcode{\exposid{value_} = addressof(x)}.
+\tcode{\exposid{value_} = addressof(val)}.
 
 \returns
 \tcode{\{\}}.
 \end{itemdescr}
 
 \begin{itemdecl}
-auto yield_value(const remove_reference_t<yielded>& lvalue)
+auto yield_value(const remove_reference_t<yielded>& lval)
   requires is_rvalue_reference_v<yielded> &&
     constructible_from<remove_cvref_t<yielded>, const remove_reference_t<yielded>&>;
 \end{itemdecl}
@@ -1525,7 +1527,7 @@ of some \tcode{generator} object \tcode{x}.
 \returns
 An awaitable object of an unspecified type~([expr.await])
 that stores an object of type \tcode{remove_cvref_t<yielded>}
-direct-non-list-initialized with \tcode{lvalue},
+direct-non-list-initialized with \tcode{lval},
 whose member functions arrange for
 \tcode{\exposid{value_}} to point to that stored object
 and then suspend the coroutine.
@@ -1549,10 +1551,13 @@ template<class T2, class V2, class Alloc2, class Unused>
 A handle for the coroutine whose promise object is \tcode{*this}
 is at the top of the stack of associated coroutine handles
 of some \tcode{generator} object \tcode{x}.
+The coroutine referred to by \tcode{g.range.\exposid{coroutine_}}
+is suspended at its initial suspend point.
 
 \returns
 An awaitable object of an unspecified type~([expr.await])
 which takes ownership of the generator \tcode{g.range},
+whose member \tcode{await_ready} returns \tcode{false},
 whose member \tcode{await_suspend}
 pushes \tcode{g.range.\exposid{coroutine_}} atop the stack of
 coroutine handles associated with \tcode{x}
@@ -1643,12 +1648,8 @@ with \tcode{A(std::forward<Alloc>(alloc))},
 for the overloads with a function parameter \tcode{alloc},
 or with \tcode{A()} otherwise.
 Uses \tcode{b} to allocate storage for the smallest array
-of \tcode{U} sufficient to provide storage for:
-\begin{itemize}
-\item a coroutine state of size \tcode{size},
-\item if \tcode{allocator_traits<B>::is_always_equal::value} is \tcode{false},
-space to store a copy of \tcode{b}, and
-\item if \tcode{Allocator} is \tcode{void},
+of \tcode{U} sufficient to provide storage for
+a coroutine state of size \tcode{size}, and
 unspecified additional state necessary to ensure that
 \tcode{operator delete} can later deallocate this memory block
 with an allocator equal to \tcode{b}.
@@ -1692,7 +1693,7 @@ namespace std::ranges {
       @\exposid{iterator}@& operator++();
       void operator++(int);
 
-      friend bool operator==(@\exposid{iterator}@ i, default_sentinel_t) noexcept;
+      friend bool operator==(@\exposid{iterator}@ i, default_sentinel_t);
 
   private:
       coroutine_handle<promise_type> @\exposid{coroutine_}@; // \expos
@@ -1726,9 +1727,9 @@ Equivalent to:
 
 \begin{itemdescr}
 \expects
-\tcode{\exposid{coroutine_}.done()} is \tcode{false}, and
-\exposid{coroutine_} is in the stack of coroutine handles associated with
-some \tcode{generator}.
+\exposid{coroutine_} is in the stack of coroutine handles
+associated with some \tcode{generator}, and
+\tcode{\exposid{coroutine_}.done()} is \tcode{false}.
 
 Let \tcode{p} be the promise object of the coroutine
 referred to by the handle at the top of
@@ -1771,7 +1772,7 @@ Equivalent to: \tcode{++*this}.
 \end{itemdescr}
 
 \begin{itemdecl}
-friend bool operator==(@\exposid{iterator}@ i, default_sentinel_t) noexcept;
+friend bool operator==(@\exposid{iterator}@ i, default_sentinel_t);
 \end{itemdecl}
 
 \begin{itemdescr}
