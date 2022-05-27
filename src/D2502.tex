@@ -1346,6 +1346,11 @@ generator(generator&& other) noexcept;
 \effects
 Initializes \tcode{\exposid{coroutine_}} with \tcode{exchange(other.\exposid{coroutine_}, \{\})}.
 The stack of associated coroutine handles is transferred from \tcode{other} to \tcode{*this}.
+
+\begin{note}
+Iterators previously obtained from \tcode{other} are not invalidated;
+they become iterators into \tcode{*this}.
+\end{note}
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1364,16 +1369,21 @@ Equivalent to:
 \end{itemdescr}
 
 \begin{itemdecl}
-generator& operator=(generator that) noexcept;
+generator& operator=(generator other) noexcept;
 \end{itemdecl}
 
 \begin{itemdescr}
 \effects
 Equivalent to:
-\tcode{swap(\exposid{coroutine_}, that.\exposid{coroutine_})}.
+\tcode{swap(\exposid{coroutine_}, other.\exposid{coroutine_})}.
 
 \returns
 \tcode{*this}.
+
+\begin{note}
+Iterators previously obtained from \tcode{other} are not invalidated;
+they become iterators into \tcode{*this}.
+\end{note}
 \end{itemdescr}
 
 \begin{itemdecl}
