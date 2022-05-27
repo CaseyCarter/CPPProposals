@@ -35,7 +35,6 @@ their unpublished D2168R4 for continuity of design.
 \section{Revisions}
 
 %% TODO:
-%% * Update implementation
 %% * Allow yielding lvalues for generator<T> but not generator<T&&>.
 %% * Give "unspecified type whose size and alignment are both
 %%   __STDCPP_DEFAULT_NEW_ALIGNMENT__" a user-accessible name.
@@ -147,6 +146,7 @@ Changes made at the request of LWG small group review except those annotated
 \item Coroutine handles do not "denote" coroutines,
   they "refer to" coroutines ([expr.await]/3.5 is the first of many usages).
 \item{} [CMC] Define the nested classes within \tcode{std::ranges}.
+\item{} [CMC] Update implementation.
 \end{itemize}
 
 \subsection{P2502R1}
@@ -1805,7 +1805,7 @@ Equivalent to: \tcode{return i.\exposid{coroutine_}.done();}
     \bibitem[Implementation]{Implementation}
     Casey Carter, Lewis Baker, Corentin Jabot.
     \tcode{std::generator} implementation.
-    \url{https://godbolt.org/z/qv9Yodhdx}
+    \url{https://godbolt.org/z/j6rEj3cTb}
 \end{thebibliography}
 
 \end{document}

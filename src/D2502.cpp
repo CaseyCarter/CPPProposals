@@ -1,12 +1,6 @@
 ////////////////////////////////////////////////////////////////
-// Reference implementation of std::generator proposal P2502R1.
+// Reference implementation of std::generator proposal P2502R2
 //
-// Incorporates a suggested change to require use of ranges::elements_of(range)
-// when yielding elements of a child range from a generator.
-//
-// This now also supports yielding an arbitrary range/view as long
-// as the elements of that range are convertible to the current
-// generator's reference type.
 
 #include <algorithm>
 #include <cassert>
@@ -166,11 +160,6 @@ namespace std {
                 ::new (reinterpret_cast<void*>(_Al_address)) _Alloc{::std::move(_Al)};
                 return _Ptr;
             }
-
-#if defined(__GNUC__) && !defined(__clang__)
-            // avoid false positive "control reaches end of non-void function"
-            __builtin_unreachable();
-#endif // defined(__GNUC__) && !defined(__clang__)
         }
 
     public:
@@ -205,7 +194,7 @@ namespace std {
     namespace ranges {
         template <range _Rng, class _Alloc = allocator<byte>>
         struct elements_of {
-            _Rng range;
+            NO_UNIQUE_ADDRESS _Rng range;
             NO_UNIQUE_ADDRESS _Alloc allocator{};
         };
 
@@ -243,11 +232,8 @@ namespace std {
 
         // clang-format off
         [[nodiscard]] auto yield_value(const remove_reference_t<_Yielded>& _Val)
-            noexcept(is_nothrow_constructible_v<remove_cvref_t<_Yielded>,
-                const remove_reference_t<_Yielded>&>)
-            requires is_rvalue_reference_v<_Yielded>
-                && constructible_from<remove_cvref_t<_Yielded>, const remove_reference_t<_Yielded>&>
-        {
+            noexcept(is_nothrow_constructible_v<remove_cvref_t<_Yielded>, const remove_reference_t<_Yielded>&>)
+            requires (is_rvalue_reference_v<_Yielded> && constructible_from<remove_cvref_t<_Yielded>, const remove_reference_t<_Yielded>&>) {
             // clang-format on
             return _Element_awaiter{_Val};
         }
@@ -266,14 +252,14 @@ namespace std {
             requires convertible_to<::std::ranges::range_reference_t<_Rng>, _Yielded>
         [[nodiscard]] auto yield_value(::std::ranges::elements_of<_Rng, _Alloc> _Elem) noexcept {
             // clang-format on
-            using _Vty   = ::std::ranges::range_value_t<_Rng>;
-            auto& _Range = _Elem.range;
+            using _Vty = ::std::ranges::range_value_t<_Rng>;
             return _Nested_awaitable<_Yielded, _Vty, _Alloc>{
                 [](allocator_arg_t, _Alloc, auto* _Range_ptr) -> generator<_Yielded, _Vty, _Alloc> {
-                    for (auto&& e : *_Range_ptr) {
-                        co_yield static_cast<_Yielded>(::std::forward<decltype(e)>(e));
+                    using _RRef = ::std::ranges::range_reference_t<_Rng>;
+                    for (_RRef&& e : *_Range_ptr) {
+                        co_yield static_cast<_Yielded>(::std::forward<_RRef>(e));
                     }
-                }(allocator_arg, _Elem.allocator, ::std::addressof(_Range))};
+                }(allocator_arg, _Elem.allocator, ::std::addressof(_Elem.range))};
         }
 
         void await_transform() = delete;
@@ -393,6 +379,8 @@ namespace std {
         _Nest_info* _Info            = nullptr;
     };
 
+    struct _Gen_secret_tag {};
+
     template <class _Value, class _Ref>
     class _Gen_iter {
     public:
@@ -429,49 +417,49 @@ namespace std {
         template <class, class, class>
         friend class generator;
 
-        explicit _Gen_iter(coroutine_handle<_Gen_promise_base<_Gen_yield_t<_Ref>>> _Coro_) noexcept
+        explicit _Gen_iter(_Gen_secret_tag,
+            coroutine_handle<_Gen_promise_base<_Gen_yield_t<_Ref>>> _Coro_) noexcept
             : _Coro{_Coro_} {}
 
         coroutine_handle<_Gen_promise_base<_Gen_yield_t<_Ref>>> _Coro;
     };
 
-    template <class _Yield, class _Alloc>
-    struct EMPTY_BASES _Gen_promise : _Promise_allocator<_Alloc>, _Gen_promise_base<_Yield> {
-        [[nodiscard]] coroutine_handle<_Gen_promise> get_return_object() noexcept {
-            return coroutine_handle<_Gen_promise>::from_promise(*this);
-        }
-    };
-
     template <class _Rty, class _Vty, class _Alloc>
     class generator {
-    public:
+    private:
         using _Value = _Gen_value_t<_Rty, _Vty>;
         static_assert(same_as<remove_cvref_t<_Value>, _Value> && is_object_v<_Value>,
             "generator's value type must be a cv-unqualified object type");
 
         // clang-format off
-    using _Ref = _Gen_reference_t<_Rty, _Vty>;
-    static_assert(is_reference_v<_Ref>
-        || (is_object_v<_Ref> && same_as<remove_cv_t<_Ref>, _Ref> && copy_constructible<_Ref>),
-        "generator's second argument must be a reference type or a cv-unqualified "
-        "copy-constructible object type");
+        using _Ref = _Gen_reference_t<_Rty, _Vty>;
+        static_assert(is_reference_v<_Ref>
+            || (is_object_v<_Ref> && same_as<remove_cv_t<_Ref>, _Ref> && copy_constructible<_Ref>),
+            "generator's second argument must be a reference type or a cv-unqualified "
+            "copy-constructible object type");
 
-    using _RRef = conditional_t<is_lvalue_reference_v<_Ref>, remove_reference_t<_Ref>&&, _Ref>;
+        using _RRef = conditional_t<is_lvalue_reference_v<_Ref>, remove_reference_t<_Ref>&&, _Ref>;
 
-    static_assert(common_reference_with<_Ref&&, _Value&> && common_reference_with<_Ref&&, _RRef&&>
-        && common_reference_with<_RRef&&, const _Value&>,
-        "an iterator with the selected value and reference types cannot model indirectly_readable");
+        static_assert(common_reference_with<_Ref&&, _Value&> && common_reference_with<_Ref&&, _RRef&&>
+            && common_reference_with<_RRef&&, const _Value&>,
+            "an iterator with the selected value and reference types cannot model indirectly_readable");
         // clang-format on
 
         friend _Gen_promise_base<_Gen_yield_t<_Ref>>;
-        using promise_type = _Gen_promise<_Gen_yield_t<_Ref>, _Alloc>;
+
+    public:
+        struct EMPTY_BASES promise_type : _Promise_allocator<_Alloc>,
+                                          _Gen_promise_base<_Gen_yield_t<_Ref>> {
+            [[nodiscard]] generator get_return_object() noexcept {
+                return generator{
+                    _Gen_secret_tag{}, coroutine_handle<promise_type>::from_promise(*this)};
+            }
+        };
         static_assert(is_standard_layout_v<promise_type>);
 #ifdef __cpp_lib_is_pointer_interconvertible
         static_assert(is_pointer_interconvertible_base_of_v<_Gen_promise_base<_Gen_yield_t<_Ref>>,
             promise_type>);
 #endif // __cpp_lib_is_pointer_interconvertible
-
-        generator(coroutine_handle<promise_type> _Coro_) noexcept : _Coro(_Coro_) {}
 
         generator(generator&& _That) noexcept : _Coro(::std::exchange(_That._Coro, {})) {}
 
@@ -481,10 +469,8 @@ namespace std {
             }
         }
 
-        generator& operator=(generator&& _That) noexcept {
-            if (auto _Old = ::std::exchange(_Coro, ::std::exchange(_That._Coro, {}))) {
-                _Old.destroy();
-            }
+        generator& operator=(generator _That) noexcept {
+            ::std::ranges::swap(_Coro, _That._Coro);
             return *this;
         }
 
@@ -492,7 +478,7 @@ namespace std {
             // Pre: _Coro is suspended at its initial suspend point
             assert(_Coro && "Can't call begin on moved-from generator");
             _Coro.resume();
-            return _Gen_iter<_Value, _Ref>{
+            return _Gen_iter<_Value, _Ref>{_Gen_secret_tag{},
                 coroutine_handle<_Gen_promise_base<_Gen_yield_t<_Ref>>>::from_address(
                     _Coro.address())};
         }
@@ -503,6 +489,9 @@ namespace std {
 
     private:
         coroutine_handle<promise_type> _Coro = nullptr;
+
+        explicit generator(_Gen_secret_tag, coroutine_handle<promise_type> _Coro_) noexcept
+            : _Coro(_Coro_) {}
     };
 
     namespace ranges {
