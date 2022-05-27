@@ -1298,6 +1298,9 @@ namespace std {
 
 \mandates
 \begin{itemize}
+\item If \tcode{Allocator} is not \tcode{void},
+  \tcode{allocator_traits<Allocator>::pointer} has pointer type.
+
 \item \exposid{value} is a cv-unqualified object type.
 
 \item \exposid{reference} is either a reference type, or
@@ -1658,6 +1661,9 @@ Let \tcode{A} be
 Let \tcode{B} be \tcode{allocator_traits<A>::template rebind_alloc<U>}
 where \tcode{U} is an unspecified type whose size and alignment
 are both \tcode{__STDCPP_DEFAULT_NEW_ALIGNMENT__}.
+
+\mandates
+\tcode{allocator_traits<B>::pointer} has pointer type.
 
 \effects
 Initializes an allocator \tcode{b} of type \tcode{B}
