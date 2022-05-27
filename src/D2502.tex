@@ -44,6 +44,13 @@ Changes requested during 2022-05-27 LWG review.
 \begin{itemize}
 \item \tcode{generator} publicly derives from \tcode{ranges::view_interface}
   instead of specializing \tcode{ranges::enable_view}.
+\item Allocators must use real pointers; both
+  \tcode{generator}'s template parameter \tcode{Allocator} and
+  any allocator used in an \tcode{operator new}.
+\item \tcode{generator} moves don't invalidate iterators.
+\item Add ``top of stack coroutine is suspended'' preconditions to
+  \tcode{iterator::operator*} (explicitly) and
+  \tcode{iterator::operator++} (implicit via effects-equivalent-to).
 \item Since all ``parameter preview'' arguments
   to \tcode{operator new} are lvalues,
   \tcode{operator new} overloads now take
@@ -1377,8 +1384,7 @@ generator& operator=(generator other) noexcept;
 
 \begin{itemdescr}
 \effects
-Equivalent to:
-\tcode{swap(\exposid{coroutine_}, other.\exposid{coroutine_})}.
+Equivalent to \tcode{swap(\exposid{coroutine_}, other.\exposid{coroutine_})}.
 
 \returns
 \tcode{*this}.
@@ -1399,7 +1405,7 @@ they become iterators into \tcode{*this}.
 suspended at its initial suspend point ([dcl.fct.def.coroutine]).
 
 \effects
-Equivalent to: \tcode{\exposid{coroutine_}.resume()}.
+Equivalent to \tcode{\exposid{coroutine_}.resume()}.
 
 \returns
 An \tcode{\exposid{iterator}} object
@@ -1524,8 +1530,7 @@ suspend_always yield_value(yielded val) noexcept;
 
 \begin{itemdescr}
 \effects
-Equivalent to:
-\tcode{\exposid{value_} = addressof(val)}.
+Equivalent to \tcode{\exposid{value_} = addressof(val)}.
 
 \returns
 \tcode{\{\}}.
@@ -1739,8 +1744,7 @@ with \tcode{exchange(other.\exposid{coroutine_}, \{\})}.
 
 \begin{itemdescr}
 \effects
-Equivalent to:
-\tcode{\exposid{coroutine_} = exchange(other.\exposid{coroutine_}, \{\});}
+Equivalent to \tcode{\exposid{coroutine_} = exchange(other.\exposid{coroutine_}, \{\})}.
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1750,19 +1754,13 @@ Equivalent to:
 \begin{itemdescr}
 \expects
 \exposid{coroutine_} is in the stack of coroutine handles
-associated with some \tcode{generator}, and
-\tcode{\exposid{coroutine_}.done()} is \tcode{false}.
-
-Let \tcode{p} be the promise object of the coroutine
-referred to by the handle at the top of
-the stack of coroutine handles associated with
-the \tcode{generator} whose stack includes \exposid{coroutine_}.
+associated with some \tcode{generator} and
+the coroutine handle at the top of that \tcode{generator}'s stack
+refers to a suspended coroutine with promise object \tcode{p}.
 
 \effects
 Equivalent to:
-\begin{codeblock}
-    return static_cast<@\exposid{reference}@>(*p.@\exposid{value_}@);
-\end{codeblock}
+\tcode{return static_cast<\exposid{reference}>(*p.\exposid{value_});}
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1771,14 +1769,14 @@ Equivalent to:
 
 \begin{itemdescr}
 \expects
-\tcode{\exposid{coroutine_}.done()} is \tcode{false}, and
-\exposid{coroutine_} is in the stack of coroutine handles associated with
-some \tcode{generator}.
+\exposid{coroutine_} is in the stack of coroutine handles
+associated with some \tcode{generator}.
+Let \tcode{h} be the coroutine handle
+at the top of that \tcode{generator}'s stack
+of associated coroutine handles.
 
 \effects
-Resumes the coroutine referred to by the handle
-at the top of the stack of coroutine handles associated with
-the \tcode{generator} whose stack includes \exposid{coroutine_}.
+Equivalent to \tcode{h.resume()}.
 
 \returns
 \tcode{return *this};
@@ -1790,7 +1788,7 @@ void operator++(int);
 
 \begin{itemdescr}
 \effects
-Equivalent to: \tcode{++*this}.
+Equivalent to \tcode{++*this}.
 \end{itemdescr}
 
 \begin{itemdecl}
