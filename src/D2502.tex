@@ -58,6 +58,7 @@ Changes requested during 2022-05-27 LWG review.
   by \tcode{const\&}.
 \item Make ``stack of associated coroutine handles'' an explicit
   \tcode{unique_ptr<stack<coroutine_handle<>>>} member of \tcode{generator}.
+\item Don't use ``Preconditions'' for a template parameter type requirement.
 \end{itemize}
 
 \subsection{D2502R2 (LWG small group review)}
@@ -1332,9 +1333,8 @@ can model \tcode{indirectly_readable} and thus \tcode{input_iterator}.
 \end{note}
 \end{itemize}
 
-\preconditions
-\tcode{Allocator} is \tcode{void} or
-meets the \tcode{Cpp17Allocator} requirements.
+If \tcode{Allocator} is not \tcode{void},
+it shall meet the \tcode{Cpp17Allocator} requirements.
 
 Specializations of \tcode{generator} model \tcode{view} and \tcode{input_range}.
 
