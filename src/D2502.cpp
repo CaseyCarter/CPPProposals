@@ -34,6 +34,10 @@ namespace std {
     template <class _Alloc>
     using _Rebind = typename allocator_traits<_Alloc>::template rebind_alloc<_Aligned_block>;
 
+    template <class _Alloc>
+    concept _Has_real_pointers =
+        same_as<_Alloc, void> || is_pointer_v<typename allocator_traits<_Alloc>::pointer>;
+
     template <class _Allocator = void>
     class _Promise_allocator { // statically specified allocator type
     private:
@@ -66,18 +70,17 @@ namespace std {
         }
 
         template <class _Alloc2, class... _Args>
-            requires convertible_to<_Alloc2, _Allocator>
-        static void* operator new(const size_t _Size, allocator_arg_t, _Alloc2&& _Al, _Args&...) {
-            return _Allocate(
-                static_cast<_Alloc>(static_cast<_Allocator>(::std::forward<_Alloc2>(_Al))), _Size);
+            requires convertible_to<const _Alloc2&, _Allocator>
+        static void* operator new(
+            const size_t _Size, allocator_arg_t, const _Alloc2& _Al, const _Args&...) {
+            return _Allocate(static_cast<_Alloc>(static_cast<_Allocator>(_Al)), _Size);
         }
 
         template <class _This, class _Alloc2, class... _Args>
-            requires convertible_to<_Alloc2, _Allocator>
-        static void* operator new(
-            const size_t _Size, _This&, allocator_arg_t, _Alloc2&& _Al, _Args&...) {
-            return _Allocate(
-                static_cast<_Alloc>(static_cast<_Allocator>(::std::forward<_Alloc2>(_Al))), _Size);
+            requires convertible_to<const _Alloc2&, _Allocator>
+        static void* operator new(const size_t _Size, const _This&, allocator_arg_t,
+            const _Alloc2& _Al, const _Args&...) {
+            return _Allocate(static_cast<_Alloc>(static_cast<_Allocator>(_Al)), _Size);
         }
 
         static void operator delete(void* const _Ptr, const size_t _Size) noexcept {
@@ -110,10 +113,10 @@ namespace std {
     private:
         using _Dealloc_fn = void (*)(void*, size_t);
 
-        template <class _Alloc2>
-        static void* _Allocate(_Alloc2 _Al2, size_t _Size) {
-            using _Alloc = _Rebind<_Alloc2>;
-            auto _Al     = static_cast<_Alloc>(_Al2);
+        template <class _ProtoAlloc>
+        static void* _Allocate(const _ProtoAlloc& _Proto, size_t _Size) {
+            using _Alloc = _Rebind<_ProtoAlloc>;
+            auto _Al     = static_cast<_Alloc>(_Proto);
 
             if constexpr (default_initializable<
                               _Alloc> && allocator_traits<_Alloc>::is_always_equal::value) {
@@ -174,13 +177,17 @@ namespace std {
 
         template <class _Alloc, class... _Args>
         static void* operator new(
-            const size_t _Size, allocator_arg_t, const _Alloc& _Al, _Args&...) {
+            const size_t _Size, allocator_arg_t, const _Alloc& _Al, const _Args&...) {
+            static_assert(
+                _Has_real_pointers<_Alloc>, "coroutine allocators must use true pointers");
             return _Allocate(_Al, _Size);
         }
 
         template <class _This, class _Alloc, class... _Args>
         static void* operator new(
-            const size_t _Size, _This&, allocator_arg_t, const _Alloc& _Al, _Args&...) {
+            const size_t _Size, const _This&, allocator_arg_t, const _Alloc& _Al, const _Args&...) {
+            static_assert(
+                _Has_real_pointers<_Alloc>, "coroutine allocators must use true pointers");
             return _Allocate(_Al, _Size);
         }
 
@@ -231,26 +238,26 @@ namespace std {
         }
 
         // clang-format off
-        [[nodiscard]] auto yield_value(const remove_reference_t<_Yielded>& _Val)
-            noexcept(is_nothrow_constructible_v<remove_cvref_t<_Yielded>, const remove_reference_t<_Yielded>&>)
-            requires (is_rvalue_reference_v<_Yielded> && constructible_from<remove_cvref_t<_Yielded>, const remove_reference_t<_Yielded>&>) {
+    [[nodiscard]] auto yield_value(const remove_reference_t<_Yielded>& _Val)
+        noexcept(is_nothrow_constructible_v<remove_cvref_t<_Yielded>, const remove_reference_t<_Yielded>&>)
+        requires (is_rvalue_reference_v<_Yielded> && constructible_from<remove_cvref_t<_Yielded>, const remove_reference_t<_Yielded>&>) {
             // clang-format on
             return _Element_awaiter{_Val};
         }
 
         // clang-format off
-        template <class _Rty, class _Vty, class _Alloc, class _Unused>
-            requires same_as<_Gen_yield_t<_Gen_reference_t<_Rty, _Vty>>, _Yielded>
-        [[nodiscard]] auto yield_value(
-            ::std::ranges::elements_of<generator<_Rty, _Vty, _Alloc>&&, _Unused> _Elem) noexcept {
+    template <class _Rty, class _Vty, class _Alloc, class _Unused>
+        requires same_as<_Gen_yield_t<_Gen_reference_t<_Rty, _Vty>>, _Yielded>
+    [[nodiscard]] auto yield_value(
+        ::std::ranges::elements_of<generator<_Rty, _Vty, _Alloc>&&, _Unused> _Elem) noexcept {
             // clang-format on
             return _Nested_awaitable<_Rty, _Vty, _Alloc>{std::move(_Elem.range)};
         }
 
         // clang-format off
-        template <::std::ranges::input_range _Rng, class _Alloc>
-            requires convertible_to<::std::ranges::range_reference_t<_Rng>, _Yielded>
-        [[nodiscard]] auto yield_value(::std::ranges::elements_of<_Rng, _Alloc> _Elem) noexcept {
+    template <::std::ranges::input_range _Rng, class _Alloc>
+        requires convertible_to<::std::ranges::range_reference_t<_Rng>, _Yielded>
+    [[nodiscard]] auto yield_value(::std::ranges::elements_of<_Rng, _Alloc> _Elem) noexcept {
             // clang-format on
             using _Vty = ::std::ranges::range_value_t<_Rng>;
             return _Nested_awaitable<_Yielded, _Vty, _Alloc>{
@@ -425,25 +432,27 @@ namespace std {
     };
 
     template <class _Rty, class _Vty, class _Alloc>
-    class generator {
+    class generator : public ranges::view_interface<generator<_Rty, _Vty, _Alloc>> {
     private:
         using _Value = _Gen_value_t<_Rty, _Vty>;
         static_assert(same_as<remove_cvref_t<_Value>, _Value> && is_object_v<_Value>,
             "generator's value type must be a cv-unqualified object type");
 
         // clang-format off
-        using _Ref = _Gen_reference_t<_Rty, _Vty>;
-        static_assert(is_reference_v<_Ref>
-            || (is_object_v<_Ref> && same_as<remove_cv_t<_Ref>, _Ref> && copy_constructible<_Ref>),
-            "generator's second argument must be a reference type or a cv-unqualified "
-            "copy-constructible object type");
+    using _Ref = _Gen_reference_t<_Rty, _Vty>;
+    static_assert(is_reference_v<_Ref>
+        || (is_object_v<_Ref> && same_as<remove_cv_t<_Ref>, _Ref> && copy_constructible<_Ref>),
+        "generator's second argument must be a reference type or a cv-unqualified "
+        "copy-constructible object type");
 
-        using _RRef = conditional_t<is_lvalue_reference_v<_Ref>, remove_reference_t<_Ref>&&, _Ref>;
+    using _RRef = conditional_t<is_lvalue_reference_v<_Ref>, remove_reference_t<_Ref>&&, _Ref>;
 
-        static_assert(common_reference_with<_Ref&&, _Value&> && common_reference_with<_Ref&&, _RRef&&>
-            && common_reference_with<_RRef&&, const _Value&>,
-            "an iterator with the selected value and reference types cannot model indirectly_readable");
+    static_assert(common_reference_with<_Ref&&, _Value&> && common_reference_with<_Ref&&, _RRef&&>
+        && common_reference_with<_RRef&&, const _Value&>,
+        "an iterator with the selected value and reference types cannot model indirectly_readable");
         // clang-format on
+
+        static_assert(_Has_real_pointers<_Alloc>, "generator allocators must use true pointers");
 
         friend _Gen_promise_base<_Gen_yield_t<_Ref>>;
 
@@ -470,7 +479,7 @@ namespace std {
         }
 
         generator& operator=(generator _That) noexcept {
-            ::std::ranges::swap(_Coro, _That._Coro);
+            ::std::swap(_Coro, _That._Coro);
             return *this;
         }
 
@@ -493,11 +502,6 @@ namespace std {
         explicit generator(_Gen_secret_tag, coroutine_handle<promise_type> _Coro_) noexcept
             : _Coro(_Coro_) {}
     };
-
-    namespace ranges {
-        template <class _Rty, class _Vty, class _Alloc>
-        inline constexpr bool enable_view<generator<_Rty, _Vty, _Alloc>> = true;
-    }
 } // namespace std
 
 /////////////////////////////////////////////////////////////////////////////
@@ -667,7 +671,7 @@ namespace {
     template <std::ranges::range... Rs, std::size_t... Indices>
     std::generator<std::tuple<std::ranges::range_reference_t<Rs>...>,
         std::tuple<std::ranges::range_value_t<Rs>...>>
-    zip_impl(std::index_sequence<Indices...>, Rs... rs) {
+        zip_impl(std::index_sequence<Indices...>, Rs... rs) {
         std::tuple<std::ranges::iterator_t<Rs>...> its{std::ranges::begin(rs)...};
         std::tuple<std::ranges::sentinel_t<Rs>...> itEnds{std::ranges::end(rs)...};
         while (((std::get<Indices>(its) != std::get<Indices>(itEnds)) && ...)) {
@@ -679,7 +683,7 @@ namespace {
     template <std::ranges::range... Rs>
     std::generator<std::tuple<std::ranges::range_reference_t<Rs>...>,
         std::tuple<std::ranges::range_value_t<Rs>...>>
-    zip(Rs&&... rs) {
+        zip(Rs&&... rs) {
         return zip_impl(std::index_sequence_for<Rs...>{}, std::views::all(std::forward<Rs>(rs))...);
     }
 
