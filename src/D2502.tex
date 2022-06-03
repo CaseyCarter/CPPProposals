@@ -10,7 +10,7 @@
 \newcolumntype{?}{!{\vrule width 1pt}}
 
 \title{\tcode{std::generator}: Synchronous Coroutine Generator for Ranges}
-\docnumber{D2502R2}
+\docnumber{P2502R2}
 \audience{LEWG}
 \author{Casey Carter}{Casey@Carter.net}
 %% \authortwo{Lewis Baker}{lewissbaker@gmail.com}
@@ -39,75 +39,51 @@ their unpublished D2168R4 for continuity of design.
 %% * Give "unspecified type whose size and alignment are both
 %%   __STDCPP_DEFAULT_NEW_ALIGNMENT__" a user-accessible name.
 
-\subsection{D2502R2 (Full LWG review)}
-Changes requested during 2022-05-27 LWG review.
-\begin{itemize}
-\item \tcode{generator} publicly derives from \tcode{ranges::view_interface}
-  instead of specializing \tcode{ranges::enable_view}.
-\item Allocators must use real pointers; both
-  \tcode{generator}'s template parameter \tcode{Allocator} and
-  any allocator used in an \tcode{operator new}.
-\item \tcode{generator} moves don't invalidate iterators.
-\item Add ``top of stack coroutine is suspended'' preconditions to
-  \tcode{iterator::operator*} (explicitly) and
-  \tcode{iterator::operator++} (implicit via effects-equivalent-to).
-\item Since all ``parameter preview'' arguments
-  to \tcode{operator new} are lvalues,
-  \tcode{operator new} overloads now take
-  the allocator, implicit object, and "ignored" parameters
-  by \tcode{const\&}.
-\item Make ``stack of associated coroutine handles'' an explicit
-  \tcode{unique_ptr<stack<coroutine_handle<>>>} member of \tcode{generator}.
-\item Don't use ``Preconditions'' for a template parameter type requirement.
-\item (Not requested by LWG) Change implementation of generic
-  \tcode{yield_value} per Lewis's suggestion to encourage HALO. (Yes, this
-  overload is overspecified.)
-\end{itemize}
-
-\subsection{D2502R2 (LWG small group review)}
-Changes made at the request of LWG small group review, except those annotated
-[CMC] which I made on my own recognizance.
+\subsection{P2502R2}
 \begin{itemize}
 \item Rebase onto N4910.
-\item{} [CMC] Change directions to the Editor from blue ``Drafting Note'' to
+\item Change directions to the Editor from blue ``Drafting Note'' to
   magenta ``Editor's note'' in square brackets. Hopefully this makes them
   distinctive so as not to be confused with the actual wording changes.
 \item Changes to wording for \tcode{elements_of}:
   \begin{itemize}
-    \item Don't present as a subclause that holds a single subclause; flatten.
-    \item{} [CMC] Don't reuse the same input range in the example, which could
-      result in undefined behavior with some input ranges. Instead add a
-      \tcode{bool} template parameter that selects between the two different
-      uses with \tcode{if constexpr}.
-    \item{} [CMC] Annotate member \tcode{range}
-      with \tcode{[[no_unique_address]]}
-      because a range type \emph{could} be empty
-      even if they typically are not.
+  \item Don't present as a subclause that holds a single subclause; flatten.
+  \item Don't reuse the same input range in the example, which could
+    result in undefined behavior with some input ranges. Instead add a
+    \tcode{bool} template parameter that selects between the two different
+    uses with \tcode{if constexpr}.
+  \item Annotate member \tcode{range}
+    with \tcode{[[no_unique_address]]}
+    because a range type \emph{could} be empty
+    even if they typically are not.
   \end{itemize}
 \item Editorial clarifications in [coroutine.generator.overview]:
   \begin{itemize}
-    \item Change ``it was returned from'' to ``from which it was returned.''
-    \item Strike the sentence that redundantly describes how \tcode{co_yield}
-      works.
-    \item Change ``element of the generator'' to ``element of the sequence.''
-    \item Rename the \tcode{iota} generator in the example to \tcode{ints}
-      to avoid confusion with \tcode{std::iota}, \tcode{std::ranges::iota_view},
-      and \tcode{std::ranges::views::iota}.
+  \item Change ``it was returned from'' to ``from which it was returned.''
+  \item Strike the sentence that redundantly describes how \tcode{co_yield}
+    works.
+  \item Change ``element of the generator'' to ``element of the sequence.''
+  \item Rename the \tcode{iota} generator in the example to \tcode{ints}
+    to avoid confusion with \tcode{std::iota}, \tcode{std::ranges::iota_view},
+    and \tcode{std::ranges::views::iota}.
   \end{itemize}
 \item \tcode{<generator>} no longer explicitly includes
   \tcode{<coroutine>} and \tcode{<ranges>}.
 \item Rename \tcode{generator}'s first template parameter
   from \tcode{R} to \tcode{Ref} to avoid confusion with range parameters which
   are usually \tcode{R}.
+\item \tcode{generator} publicly derives from \tcode{ranges::view_interface}
+  instead of specializing \tcode{ranges::\brk{}enable_view}.
 \item Unify all "Mandates" conditions on \tcode{generator}'s template parameters
   into a single bulleted list.
 \item Express the type requirement on \tcode{generator}'s \tcode{Allocator}
   template parameter as a precondition.
+\item Allocators must use real pointers; both
+  \tcode{generator}'s template parameter \tcode{Allocator} and
+  any allocator used in an \tcode{operator new}.
 \item Replace all occurrences (all instances?) of ``instance'' in the wording
   (primarily ``generator instance'' becomes ``generator object'').
-\item The notional stack of coroutines
-  associated with a generator object
-  is now a notional stack of coroutine handles.
+\item \tcode{generator} moves don't invalidate iterators.
 \item Simplify the specification of \tcode{generator}'s assignment operator:
   it now takes a \tcode{generator} argument by-value and swaps coroutine handles
   between \tcode{*this} and the argument. (Usage should be equivalent to the
@@ -115,18 +91,16 @@ Changes made at the request of LWG small group review, except those annotated
 \item "Initial suspend point" has no hyphens, and
   is defined in [dcl.fct.def.coroutine].
 \item We don't need to emphasize that the stack is empty in \tcode{begin}.
-\item Corrected spelling of \tcode{__STDCPP_DEFAULT_NEW_ALIGNMENT__}.
-\item{} [CMC] Coalesce privates into a single section at:
-  \begin{itemize}
-    \item the beginning of \tcode{generator}'s body, and
-    \item the end of \tcode{promise_type}'s body.
-  \end{itemize}
+\item Strike a couple of \tcode{friend sometype} declarations.
+\item Strike exposition-only constructors.
+\item Coroutine handles do not "denote" coroutines,
+  they "refer to" coroutines ([expr.await]/3.5 is the first of many usages).
+\item \tcode{get_return_object} returns \tcode{generator(...)} instead of
+  \tcode{generator\{...\}}.
 \item Clarify behavior of \tcode{promise_type::final_suspend}, especially when
   the stack of associated coroutine handles becomes empty.
 \item Rename template parameter \tcode{Alloc2} of \tcode{promise}'s
   \tcode{yield_value(elements_of)} member function template to \tcode{Alloc}.
-\item \tcode{get_return_object} returns \tcode{generator(...)} instead of
-  \tcode{generator\{...\}}.
 \item Massively simplify and un-template the \tcode{yield_value} overload that
   takes \tcode{const remove_reference_t<yielded>\&}. (We don't need to
   artificially template to ensure it's distinct from
@@ -152,6 +126,7 @@ Changes made at the request of LWG small group review, except those annotated
 \item Specify that \grammarterm{yield-expression}s that call
   one of the \tcode{promise::yield_value} overloads
   have type \tcode{void}.
+\item Corrected spelling of \tcode{__STDCPP_DEFAULT_NEW_ALIGNMENT__}.
 \item Remove extraneous \tcode{static} from all declarations
   of class-member \tcode{operator new} and \tcode{operator delete};
   class-member \tcode{operator new} and \tcode{operator delete}
@@ -164,14 +139,26 @@ Changes made at the request of LWG small group review, except those annotated
   which is extraneous thanks to "Effects: equivalent to".
 \item Make \tcode{operator==} a hidden friend instead of a member
   for consistency with the rest of the library.
-  [CMC] Also use "Effects: equivalent to" for \tcode{operator==}
+  Also use "Effects: equivalent to" for \tcode{operator==}
   to avoid explicit preconditions.
-\item Strike a couple of \tcode{friend sometype} declarations.
-\item Strike exposition-only constructors.
-\item Coroutine handles do not "denote" coroutines,
-  they "refer to" coroutines ([expr.await]/3.5 is the first of many usages).
-\item{} [CMC] Define the nested classes within \tcode{std::ranges}.
-\item{} [CMC] Update implementation.
+\item Add ``top of stack coroutine is suspended'' preconditions to
+  \tcode{iterator::operator*} (explicitly) and
+  \tcode{iterator::operator++} (implicit via effects-equivalent-to).
+\item Since all ``parameter preview'' arguments
+  to \tcode{operator new} are lvalues,
+  \tcode{operator new} overloads now take
+  the allocator, implicit object, and "ignored" parameters
+  by \tcode{const\&}.
+\item Make the ``stack of associated coroutines'' an exposition-only
+  \tcode{unique_ptr<stack<coroutine\brk{}_handle<>>>} member of \tcode{generator}.
+\item Don't use ``Preconditions'' for a template parameter type requirement.
+\item (Not requested by LWG) Change implementation of generic
+  \tcode{yield_value} per Lewis's suggestion to encourage HALO. (Yes, this
+  overload is overspecified.)
+\item Add missing \returns element to \tcode{iterator::operator=}.
+\item Fix ``\returns \tcode{return *this;}'' for \tcode{iterator::operator++()}.
+\item Define the nested classes within \tcode{namespace std}.
+\item Update implementation.
 \end{itemize}
 
 \subsection{P2502R1}
@@ -1313,7 +1300,7 @@ namespace std {
 \mandates
 \begin{itemize}
 \item If \tcode{Allocator} is not \tcode{void},
-  \tcode{allocator_traits<Allocator>::pointer} has pointer type.
+  \tcode{allocator_traits<Allocator>::pointer} is a pointer type.
 
 \item \exposid{value} is a cv-unqualified object type.
 
@@ -1352,9 +1339,10 @@ generator(generator&& other) noexcept;
 
 \begin{itemdescr}
 \effects
-Initializes \tcode{\exposid{coroutine_}} with \tcode{exchange(other.\exposid{coroutine_}, \{\})}
-and \tcode{\exposid{active_}} with \tcode{exchange(other.active_, nullptr)}.
-{*this}.
+Initializes \tcode{\exposid{coroutine_}} with
+\tcode{exchange(other.\exposid{coroutine_}, \{\})}
+and \tcode{\exposid{active_}} with
+\brk{}\tcode{exchange(other.active_, nullptr)}.
 
 \begin{note}
 Iterators previously obtained from \tcode{other} are not invalidated;
@@ -1392,8 +1380,8 @@ generator& operator=(generator other) noexcept;
 \effects
 Equivalent to:
 \begin{codeblock}
-swap(\exposid{coroutine_}, other.\exposid{coroutine_});
-swap(\exposid{active_}, other.\exposid{active_});
+swap(@\exposid{coroutine_}@, other.@\exposid{coroutine_}@);
+swap(@\exposid{active_}@, other.@\exposid{active_}@);
 \end{codeblock}
 \returns
 \tcode{*this}.
@@ -1443,7 +1431,7 @@ default_sentinel_t end() const noexcept;
 \rSec3[coroutine.generator.promise]{class \tcode{generator::promise_type}}
 
 \begin{codeblock}
-namespace std::ranges {
+namespace std {
   template<class Ref, class V, class Allocator>
   class generator<Ref, V, Allocator>::promise_type {
   public:
@@ -1579,10 +1567,12 @@ template<class T2, class V2, class Alloc2, class Unused>
 
 \begin{itemdescr}
 \expects
-A handle referring to the coroutine whose promise object is \tcode{*this}
+A handle referring to the coroutine
+whose promise object is \tcode{*this}
 is at the top of \tcode{*\exposid{active_}}
 of some \tcode{generator} object \tcode{x}.
-The coroutine referred to by \tcode{g.range.\exposid{coroutine_}}
+The coroutine referred to by
+\tcode{g.range\brk{}.\exposid{coroutine_}}
 is suspended at its initial suspend point.
 
 \returns
@@ -1615,8 +1605,8 @@ template<ranges::input_range Rng, class Alloc>
 \effects
 Equivalent to:
 \begin{codeblock}
-    auto nested = [](allocator_arg_t, Alloc, ranges::range_iterator_t<Rng> i,
-                     ranges::range_sentinel_t<Rng> s)
+    auto nested = [](allocator_arg_t, Alloc, ranges::iterator_t<Rng> i,
+                     ranges::sentinel_t<Rng> s)
       -> generator<yielded, ranges::range_value_t<Rng>, Alloc> {
         for (; i != s; ++i) {
           co_yield static_cast<yielded>(*i);
@@ -1676,7 +1666,7 @@ where \tcode{U} is an unspecified type whose size and alignment
 are both \tcode{__STDCPP_DEFAULT_NEW_ALIGNMENT__}.
 
 \mandates
-\tcode{allocator_traits<B>::pointer} has pointer type.
+\tcode{allocator_traits<B>::pointer} is a pointer type.
 
 \effects
 Initializes an allocator \tcode{b} of type \tcode{B}
@@ -1712,7 +1702,7 @@ using an allocator equivalent to that used to allocate it.
 \rSec3[coroutine.generator.iterator]{Class template \tcode{generator::\exposid{iterator}}}
 
 \begin{codeblock}
-namespace std::ranges {
+namespace std {
   template<class Ref, class V, class Allocator>
   class generator<Ref, V, Allocator>::@\exposid{iterator}@ {
   public:
@@ -1753,6 +1743,9 @@ with \tcode{exchange(other.\exposid{coroutine_}, \{\})}.
 \begin{itemdescr}
 \effects
 Equivalent to \tcode{\exposid{coroutine_} = exchange(other.\exposid{coroutine_}, \{\})}.
+
+\returns
+\tcode{*this}.
 \end{itemdescr}
 
 \begin{itemdecl}
@@ -1784,7 +1777,7 @@ For some \tcode{generator} object \tcode{x},
 Equivalent to \tcode{x.\exposid{active_}->top().resume()}.
 
 \returns
-\tcode{return *this};
+\tcode{*this}.
 \end{itemdescr}
 
 \begin{itemdecl}
