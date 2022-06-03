@@ -59,6 +59,9 @@ Changes requested during 2022-05-27 LWG review.
 \item Make ``stack of associated coroutine handles'' an explicit
   \tcode{unique_ptr<stack<coroutine_handle<>>>} member of \tcode{generator}.
 \item Don't use ``Preconditions'' for a template parameter type requirement.
+\item (Not requested by LWG) Change implementation of generic
+  \tcode{yield_value} per Lewis's suggestion to encourage HALO. (Yes, this
+  overload is overspecified.)
 \end{itemize}
 
 \subsection{D2502R2 (LWG small group review)}
@@ -1612,14 +1615,15 @@ template<ranges::input_range Rng, class Alloc>
 \effects
 Equivalent to:
 \begin{codeblock}
-    auto nested = [](allocator_arg_t, Alloc, auto* range_ptr)
+    auto nested = [](allocator_arg_t, Alloc, ranges::range_iterator_t<Rng> i,
+                     ranges::range_sentinel_t<Rng> s)
       -> generator<yielded, ranges::range_value_t<Rng>, Alloc> {
-        using RRef = ranges::range_reference_t<Rng>;
-        for (RRef&& e : *range_ptr)
-          co_yield static_cast<yielded>(std::forward<RRef>(e));
+        for (; i != s; ++i) {
+          co_yield static_cast<yielded>(*i);
+        }
       };
     return yield_value(ranges::elements_of(nested(
-      allocator_arg, r.allocator, addressof(r.range))));
+      allocator_arg, r.allocator, ranges::begin(r.range), ranges::end(r.range))));
 \end{codeblock}
 
 \remarks
@@ -1827,7 +1831,7 @@ Equivalent to: \tcode{return i.\exposid{coroutine_}.done();}
     \bibitem[Implementation]{Implementation}
     Casey Carter, Lewis Baker, Corentin Jabot.
     \tcode{std::generator} implementation.
-    \url{https://godbolt.org/z/d4nfGYx8T}
+    \url{https://godbolt.org/z/5hcaPcfvP}
 \end{thebibliography}
 
 \end{document}

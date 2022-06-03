@@ -238,35 +238,38 @@ namespace std {
         }
 
         // clang-format off
-    [[nodiscard]] auto yield_value(const remove_reference_t<_Yielded>& _Val)
-        noexcept(is_nothrow_constructible_v<remove_cvref_t<_Yielded>, const remove_reference_t<_Yielded>&>)
-        requires (is_rvalue_reference_v<_Yielded> && constructible_from<remove_cvref_t<_Yielded>, const remove_reference_t<_Yielded>&>) {
+        [[nodiscard]] auto yield_value(const remove_reference_t<_Yielded>& _Val)
+            noexcept(is_nothrow_constructible_v<remove_cvref_t<_Yielded>, const remove_reference_t<_Yielded>&>)
+            requires (is_rvalue_reference_v<_Yielded> &&
+                constructible_from<remove_cvref_t<_Yielded>, const remove_reference_t<_Yielded>&>) {
             // clang-format on
             return _Element_awaiter{_Val};
         }
 
         // clang-format off
-    template <class _Rty, class _Vty, class _Alloc, class _Unused>
-        requires same_as<_Gen_yield_t<_Gen_reference_t<_Rty, _Vty>>, _Yielded>
-    [[nodiscard]] auto yield_value(
-        ::std::ranges::elements_of<generator<_Rty, _Vty, _Alloc>&&, _Unused> _Elem) noexcept {
+        template <class _Rty, class _Vty, class _Alloc, class _Unused>
+            requires same_as<_Gen_yield_t<_Gen_reference_t<_Rty, _Vty>>, _Yielded>
+        [[nodiscard]] auto yield_value(
+            ::std::ranges::elements_of<generator<_Rty, _Vty, _Alloc>&&, _Unused> _Elem) noexcept {
             // clang-format on
             return _Nested_awaitable<_Rty, _Vty, _Alloc>{std::move(_Elem.range)};
         }
 
         // clang-format off
-    template <::std::ranges::input_range _Rng, class _Alloc>
-        requires convertible_to<::std::ranges::range_reference_t<_Rng>, _Yielded>
-    [[nodiscard]] auto yield_value(::std::ranges::elements_of<_Rng, _Alloc> _Elem) noexcept {
+        template <::std::ranges::input_range _Rng, class _Alloc>
+            requires convertible_to<::std::ranges::range_reference_t<_Rng>, _Yielded>
+        [[nodiscard]] auto yield_value(::std::ranges::elements_of<_Rng, _Alloc> _Elem) noexcept {
             // clang-format on
             using _Vty = ::std::ranges::range_value_t<_Rng>;
             return _Nested_awaitable<_Yielded, _Vty, _Alloc>{
-                [](allocator_arg_t, _Alloc, auto* _Range_ptr) -> generator<_Yielded, _Vty, _Alloc> {
-                    using _RRef = ::std::ranges::range_reference_t<_Rng>;
-                    for (_RRef&& e : *_Range_ptr) {
-                        co_yield static_cast<_Yielded>(::std::forward<_RRef>(e));
+                [](allocator_arg_t, _Alloc, ::std::ranges::iterator_t<_Rng> _It,
+                    const ::std::ranges::sentinel_t<_Rng> _Se)
+                    -> generator<_Yielded, _Vty, _Alloc> {
+                    for (; _It != _Se; ++_It) {
+                        co_yield static_cast<_Yielded>(*_It);
                     }
-                }(allocator_arg, _Elem.allocator, ::std::addressof(_Elem.range))};
+                }(allocator_arg, _Elem.allocator, ::std::ranges::begin(_Elem.range),
+                        ::std::ranges::end(_Elem.range))};
         }
 
         void await_transform() = delete;
